@@ -11,20 +11,18 @@ jobs:
   semgrep:
     name: Semgrep SAST
     runs-on: ubuntu-latest
-    container:
-      image: semgrep/semgrep
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Run Semgrep
-        run: |
-          semgrep ci \
-            --config auto \
-            --config .semgrep.yml \
-            --supply-chain \
-            --sarif > semgrep.sarif
-        continue-on-error: true
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/python
+            p/security-audit
+            p/secrets
+          generateSarif: "1"
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
@@ -97,6 +95,7 @@ jobs:
           args: >
             -Dsonar.organization=gianfrancoarocutipa
             -Dsonar.projectKey=anzencore
+            -Dsonar.sources=app
             -Dsonar.python.coverage.reportPaths=coverage.xml
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -107,6 +106,3 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-      - name: Debug report-task.txt
-        run: cat .scannerwork/report-task.txt
-        # Elimina este paso después de depurar
