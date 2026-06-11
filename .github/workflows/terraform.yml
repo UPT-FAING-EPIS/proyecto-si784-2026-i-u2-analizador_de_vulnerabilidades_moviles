@@ -68,23 +68,14 @@ jobs:
 
       - name: Terraform plan
         run: |
-          TF_VAR_FILE=""
-          TF_VAR_FILE="$TF_VAR_FILE -var=\"project_name=anzencore\"" # Hardcoded para este workflow
-          TF_VAR_FILE="$TF_VAR_FILE -var=\"environment=prod\"" # Hardcoded para este workflow
-          TF_VAR_FILE="$TF_VAR_FILE -var=\"location=eastus\"" # Hardcoded para este workflow, ajusta si es necesario
-          if [ -n "${{ inputs.dashboard_image }}" ]; then
-            TF_VAR_FILE="$TF_VAR_FILE -var=\"dashboard_image=${{ inputs.dashboard_image }}\""
-          fi
-          if [ -n "${{ inputs.api_image }}" ]; then
-            TF_VAR_FILE="$TF_VAR_FILE -var=\"api_image=${{ inputs.api_image }}\""
-          fi
-          # Proporcionar valores por defecto si las imágenes no están presentes (para validación de infra)
           terraform plan -out=tfplan \
             -var="supabase_url=${{ secrets.SUPABASE_URL }}" \
             -var="supabase_key=${{ secrets.SUPABASE_KEY }}" \
-            -var="dashboard_image=${{ inputs.dashboard_image || 'placeholder' }}" \
-            -var="api_image=${{ inputs.api_image || 'placeholder' }}" \
-            $TF_VAR_FILE
+            -var="dashboard_image=${{ inputs.dashboard_image != '' && inputs.dashboard_image || 'acranzencoreprod.azurecr.io/anzencore-dashboard:latest' }}" \
+            -var="api_image=${{ inputs.api_image != '' && inputs.api_image || 'acranzencoreprod.azurecr.io/anzencore-api:latest' }}" \
+            -var="project_name=anzencore" \
+            -var="environment=prod" \
+            -var="location=eastus"
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
