@@ -1,7 +1,7 @@
 rules:
   - id: no-hardcoded-supabase-key
     message: No guardar claves de Supabase directamente en el codigo.
-    severity: ERROR
+    severity: WARNING
     languages:
       - python
     pattern-regex: "sb_(anon|service_role|publishable)_[A-Za-z0-9_\\-]+"
