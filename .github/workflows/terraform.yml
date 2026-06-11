@@ -78,9 +78,12 @@ jobs:
           if [ -n "${{ inputs.api_image }}" ]; then
             TF_VAR_FILE="$TF_VAR_FILE -var=\"api_image=${{ inputs.api_image }}\""
           fi
-          terraform plan -out=tfplan $TF_VAR_FILE \
+          # Proporcionar valores por defecto si las imágenes no están presentes (para validación de infra)
+          terraform plan -out=tfplan \
             -var="supabase_url=${{ secrets.SUPABASE_URL }}" \
             -var="supabase_key=${{ secrets.SUPABASE_KEY }}" \
+            -var="dashboard_image=${{ inputs.dashboard_image || 'placeholder' }}" \
+            -var="api_image=${{ inputs.api_image || 'placeholder' }}" \
             $TF_VAR_FILE
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
