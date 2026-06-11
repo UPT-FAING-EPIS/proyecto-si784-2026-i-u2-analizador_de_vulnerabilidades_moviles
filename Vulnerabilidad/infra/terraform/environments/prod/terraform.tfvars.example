@@ -1,8 +1,0 @@
-# Ejemplo de archivo terraform.tfvars para el entorno de produccion
-project_name = "anzencore"
-environment  = "prod"
-location     = "eastus" # Cambia a tu region de Azure preferida
-
-# Estas variables seran inyectadas por GitHub Actions en el despliegue
-# supabase_url = "https://your-supabase-url.supabase.co"
-# supabase_key = "your-supabase-anon-key"
