@@ -1,0 +1,7 @@
+project_name    = "anzencore"
+environment     = "dev"
+location        = "eastus"
+supabase_url    = "https://tu-proyecto.supabase.co"
+supabase_key    = "tu_anon_key"
+dashboard_image = "mcr.microsoft.com/k8se/quickstart:latest"
+api_image       = "mcr.microsoft.com/k8se/quickstart:latest"
