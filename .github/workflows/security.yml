@@ -91,10 +91,12 @@ jobs:
       - name: Run tests with coverage
         run: pytest --cov=app --cov-report=xml --cov-report=term
 
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v4
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
         with:
           args: >
+            -Dsonar.organization=gianfrancoarocutipa
+            -Dsonar.projectKey=anzencore
             -Dsonar.python.coverage.reportPaths=coverage.xml
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
