@@ -1,0 +1,78 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "assets/**"
+      - "Dockerfile.*"
+      - "requirements.txt"
+      - "infra/terraform/**"
+
+jobs:
+  build:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    outputs:
+      dashboard_image: ${{ steps.meta.outputs.dashboard_image }}
+      api_image: ${{ steps.meta.outputs.api_image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: >-
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Get ACR credentials
+        id: acr
+        run: |
+          PROJECT_NAME="anzencore"
+          ENVIRONMENT="prod"
+          ACR_NAME="acr${PROJECT_NAME}${ENVIRONMENT}"
+          ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
+          echo "name=${ACR_NAME}" >> "$GITHUB_OUTPUT"
+          echo "login_server=${ACR_LOGIN_SERVER}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to ACR
+        run: |
+          az acr login --name "${{ steps.acr.outputs.name }}"
+
+      - name: Build dashboard image
+        run: docker build -f Dockerfile.dashboard -t ${{ steps.acr.outputs.login_server }}/anzencore-dashboard:${{ github.sha }} .
+
+      - name: Build API image
+        run: docker build -f Dockerfile.api -t ${{ steps.acr.outputs.login_server }}/anzencore-api:${{ github.sha }} .
+
+      - name: Push dashboard image
+        run: docker push ${{ steps.acr.outputs.login_server }}/anzencore-dashboard:${{ github.sha }}
+
+      - name: Push API image
+        run: docker push ${{ steps.acr.outputs.login_server }}/anzencore-api:${{ github.sha }}
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          DASHBOARD_IMAGE="${{ steps.acr.outputs.login_server }}/anzencore-dashboard:${{ github.sha }}"
+          API_IMAGE="${{ steps.acr.outputs.login_server }}/anzencore-api:${{ github.sha }}"
+          echo "dashboard_image=${DASHBOARD_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "api_image=${API_IMAGE}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Terraform Apply
+    needs: build
+    uses: ./.github/workflows/terraform.yml
+    with:
+      dashboard_image: ${{ needs.build.outputs.dashboard_image }}
+      api_image: ${{ needs.build.outputs.api_image }}
+    secrets: inherit
