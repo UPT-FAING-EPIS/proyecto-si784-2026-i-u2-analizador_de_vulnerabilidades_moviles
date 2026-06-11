@@ -87,12 +87,14 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Run tests with coverage
-        run: pytest --cov=app --cov-report=xml --cov-report=term
+        run: pytest --cov=. --cov-report=xml --cov-report=term
 
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
         with:
           args: >
+            -Dsonar.organization=gianfrancoarocutipa
+            -Dsonar.projectKey=anzencore
             -Dsonar.qualitygate.wait=true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
