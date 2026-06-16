@@ -120,7 +120,7 @@ def test_create_apk_scan_success(controller, mock_model):
         ok, msg = controller.create_apk_scan(1, mock_file)
         
         assert ok is True
-        assert msg == "Success"
+        assert msg == {"message": "Success", "scan_id": "scan-123"}
         mock_model.create_apk_scan.assert_called_once()
         mock_model.update_apk_scan.assert_called()
 
