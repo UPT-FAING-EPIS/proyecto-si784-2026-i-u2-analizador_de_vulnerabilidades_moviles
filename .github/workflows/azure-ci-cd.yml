@@ -11,7 +11,7 @@ on:
       - "requirements.txt"
 
 env:
-  ACR_NAME: "acrAnzenCoreProd123"
+  ACR_NAME: "acranzencoreprod123"
 
 jobs:
   build-and-deploy:
