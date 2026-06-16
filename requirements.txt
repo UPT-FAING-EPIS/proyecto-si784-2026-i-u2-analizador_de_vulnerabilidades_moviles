@@ -1,0 +1,13 @@
+streamlit
+supabase
+pandas
+requests
+streamlit-autorefresh
+fastapi
+python-multipart
+uvicorn
+pydantic
+pytest
+pytest-cov
+httpx
+reportlab
