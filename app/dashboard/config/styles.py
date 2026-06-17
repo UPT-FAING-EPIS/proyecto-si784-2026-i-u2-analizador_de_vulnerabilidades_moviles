@@ -31,7 +31,7 @@ html, body, [class*="css"] {
 }
 
 /* ── Hide default Streamlit chrome ── */
-#MainMenu, footer, header { visibility: hidden; }
+#MainMenu, footer { visibility: hidden; }
 .block-container { padding: 1.5rem 2rem 3rem !important; max-width: 1400px !important; }
 
 /* ── Scrollbar ── */
