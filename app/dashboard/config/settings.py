@@ -19,7 +19,10 @@ class DashboardSettings:
 
 
 def get_supabase_settings():
-    return {
-        "url": st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", "")),
-        "key": st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", "")),
-    }
+    try:
+        url = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", ""))
+        key = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", ""))
+    except Exception:
+        url = os.getenv("SUPABASE_URL", "")
+        key = os.getenv("SUPABASE_KEY", "")
+    return {"url": url, "key": key}
