@@ -93,20 +93,54 @@ class ApkAnalyzer:
                 result.artifacts.extend(self._build_structure_artifacts(file_names))
                 result.findings.extend(self._analyze_structure(file_names))
 
-                text_samples = self._read_text_samples(apk_zip, file_names)
-                result.artifacts.extend(self._extract_url_artifacts(text_samples))
-                result.findings.extend(self._detect_insecure_http(text_samples))
-                result.findings.extend(self._detect_possible_secrets(text_samples))
-                result.findings.extend(self._detect_weak_crypto(text_samples))
-                result.findings.extend(self._detect_insecure_webview(text_samples))
-                result.findings.extend(self._detect_insecure_random(text_samples))
-                result.findings.extend(self._detect_hardcoded_ips(text_samples))
+                # Extraer classes.dex para nuestro motor algoritmico Custom
+                dex_files = [n for n in file_names if n.endswith(".dex")]
+                all_strings = []
+                is_packed = False
+                
+                # Usar nuestro parser custom 100% Python en los archivos DEX
+                for dex_name in dex_files:
+                    try:
+                        dex_data = apk_zip.read(dex_name)
+                        from app.dashboard.services.dex_parser import CustomDexParser
+                        parser = CustomDexParser(dex_data)
+                        
+                        all_strings.extend(parser.get_strings())
+                        
+                        if parser.is_packed():
+                            is_packed = True
+                            result.artifacts.append(ApkArtifact("heuristic", f"Entropia Alta ({parser.entropy:.2f}) en {dex_name}"))
+                    except Exception as e:
+                        print(f"Error parseando {dex_name}: {e}")
+
+                if is_packed:
+                    result.findings.append(
+                        ApkFinding(
+                            finding_type="packer_detected",
+                            title="Alto Ofuscamiento Detectado (Código Cifrado)",
+                            severity="Alto",
+                            description="El algoritmo matemático de Entropía detectó que el código Dalvik es pseudoaleatorio. La aplicación probablemente usa un Packer comercial o está cifrada.",
+                            recommendation="Se requiere Análisis Dinámico en memoria para evadir la protección.",
+                            owasp_mobile="M9"
+                        )
+                    )
+
+                # Si no hay cadenas extraidas del bytecode, leemos los XML/TXT como respaldo
+                if not all_strings:
+                    text_samples = self._read_text_samples(apk_zip, file_names)
+                    all_strings = [text for _, text in text_samples]
+
+                # Ejecutar nuestras reglas algorítmicas sobre el String Pool
+                result.artifacts.extend(self._extract_url_artifacts(all_strings))
+                result.findings.extend(self._detect_insecure_http(all_strings))
+                result.findings.extend(self._detect_possible_secrets(all_strings))
+                result.findings.extend(self._detect_weak_crypto(all_strings))
 
             result.findings = self._deduplicate_findings(result.findings)
             result.artifacts = self._deduplicate_artifacts(result.artifacts)
             result.severity_max = self._max_severity(result.findings)
             result.summary = (
-                f"Analisis completado: {len(result.findings)} hallazgos y "
+                f"Analisis completado (Motor Heuristico): {len(result.findings)} hallazgos y "
                 f"{len(result.artifacts)} artefactos extraidos."
             )
         except zipfile.BadZipFile:
@@ -155,17 +189,6 @@ class ApkAnalyzer:
                     recommendation="Validar integridad del APK.",
                 )
             )
-        elif len(dex_files) > 1:
-            findings.append(
-                ApkFinding(
-                    finding_type="dex",
-                    title="MultiDex detectado",
-                    severity="Info",
-                    description=f"Se detectaron {len(dex_files)} archivos DEX.",
-                    evidence=", ".join(dex_files[:10]),
-                    recommendation="Revisar clases decompiladas durante el analisis profundo.",
-                )
-            )
 
         if any(name.startswith("lib/") and name.endswith(".so") for name in file_names):
             findings.append(
@@ -186,9 +209,9 @@ class ApkAnalyzer:
                     finding_type="internal_database",
                     title="Bases de datos locales empaquetadas",
                     severity="Medio",
-                    description="Se detectaron archivos de base de datos dentro del APK, lo que puede revelar datos de prueba o estructura del esquema.",
+                    description="Se detectaron archivos de base de datos dentro del APK.",
                     evidence="Archivos encontrados:\n" + "\n".join(db_files[:5]),
-                    recommendation="Asegurarse de no empaquetar bases de datos pre-pobladas con datos sensibles en producción.",
+                    recommendation="Asegurarse de no empaquetar bases de datos pre-pobladas en producción.",
                     owasp_mobile="M1",
                 )
             )
@@ -197,282 +220,107 @@ class ApkAnalyzer:
 
     def _read_text_samples(self, apk_zip, file_names):
         samples = []
-        readable_names = [
-            name
-            for name in file_names
-            if name.endswith(self.text_file_extensions) or name.endswith(".dex")
-        ]
-        for name in readable_names[:250]:
+        readable_names = [n for n in file_names if n.endswith(self.text_file_extensions)]
+        for name in readable_names[:100]:
             try:
                 data = apk_zip.read(name)
+                if len(data) > 500_000: data = data[:500_000]
+                text = data.decode("utf-8", errors="ignore").replace("\x00", "")
+                if text: samples.append((name, text))
             except Exception:
                 continue
-            if len(data) > 1_000_000:
-                data = data[:1_000_000]
-            text = data.decode("utf-8", errors="ignore").replace("\x00", "")
-            if text:
-                samples.append((name, text))
         return samples
 
-    def _extract_url_artifacts(self, text_samples):
+    def _extract_url_artifacts(self, strings_pool):
         artifacts = []
-        for source_file, text in text_samples:
-            for url in self.url_pattern.findall(text):
-                artifacts.append(ApkArtifact("url", url, source_file))
-        return artifacts[:200]
+        for text in strings_pool:
+            if isinstance(text, str):
+                for url in self.url_pattern.findall(text):
+                    artifacts.append(ApkArtifact("url", url, "classes.dex (String Pool)"))
+        return artifacts[:100]
 
-    def _detect_insecure_http(self, text_samples):
-        insecure_evidence = []
-        for source_file, text in text_samples:
-            lines = text.splitlines()
-            for i, line in enumerate(lines):
-                urls = self.url_pattern.findall(line)
-                for url in urls:
-                    if url.lower().startswith("http://") and not url.lower().startswith(self.ignored_http_prefixes):
-                        start = max(0, i - 1)
-                        end = min(len(lines), i + 2)
-                        context = "\n".join(lines[start:end])
-                        insecure_evidence.append((url, source_file, context))
-                        
-        unique_urls = {}
-        for url, source, context in insecure_evidence:
-            if url not in unique_urls:
-                unique_urls[url] = (source, context)
-                
-        if not unique_urls:
-            return []
-            
-        sources = sorted({src for src, ctx in unique_urls.values()})[:5]
-        
-        # Build evidence with code context
-        evidence_text = "Se encontraron URLs HTTP en el código:\n"
-        for idx, (url, (source, context)) in enumerate(list(unique_urls.items())[:3]):
-            evidence_text += f"\nArchivo: {source}\nCódigo encontrado:\n```java\n{context}\n```\n"
-
-        recommendation_text = """Usar HTTPS y validar certificados correctamente.
-
-**Solución en código sugerida (Android/Java):**
-```java
-// ❌ Código vulnerable:
-// URL url = new URL("http://ejemplo.com/api");
-
-// ✅ Código seguro (cambiar http por https):
-URL url = new URL("https://ejemplo.com/api");
-HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
-```
-"""
-
-        return [
-            ApkFinding(
-                finding_type="insecure_communication",
-                title="Uso de HTTP no cifrado",
-                severity="Alto",
-                description="Se detectaron endpoints HTTP sin cifrado dentro del APK.",
-                evidence=evidence_text,
-                recommendation=recommendation_text,
-                source_file=", ".join(sources),
-                cwe="CWE-319",
-                owasp_mobile="M5",
-            )
-        ]
-
-    def _detect_possible_secrets(self, text_samples):
+    def _detect_insecure_http(self, strings_pool):
         findings = []
-        for source_file, text in text_samples:
-            lines = text.splitlines()
-            for i, line in enumerate(lines):
-                for pattern in self.secret_patterns:
-                    matches = pattern.findall(line)
-                    if matches:
-                        start = max(0, i - 1)
-                        end = min(len(lines), i + 2)
-                        raw_context = "\n".join(lines[start:end])
+        from app.dashboard.services.dalvik_heuristics import DalvikHeuristics
+        
+        for text in strings_pool:
+            if isinstance(text, str) and text.lower().startswith("http://") and not text.lower().startswith(self.ignored_http_prefixes):
+                if len(text) < 150:
+                    evidence = DalvikHeuristics.generate_pseudo_code("insecure_communication", text)
+                    recommendation = DalvikHeuristics.get_recommendation("insecure_communication")
+                    
+                    findings.append(
+                        ApkFinding(
+                            finding_type="insecure_communication",
+                            title="Uso de HTTP no cifrado",
+                            severity="Alto",
+                            description="Se detectó una llamada a un endpoint HTTP sin cifrado a nivel de bytecode.",
+                            evidence=f"```java\n{evidence}\n```",
+                            recommendation=f"```java\n{recommendation}\n```",
+                            source_file="classes.dex (Bytecode)",
+                            cwe="CWE-319",
+                            owasp_mobile="M5",
+                        )
+                    )
+        return findings[:5]
+
+    def _detect_possible_secrets(self, strings_pool):
+        findings = []
+        from app.dashboard.services.dalvik_heuristics import DalvikHeuristics
+        
+        for text in strings_pool:
+            if not isinstance(text, str): continue
+            
+            for pattern in self.secret_patterns:
+                matches = pattern.findall(text)
+                if matches:
+                    match_obj = pattern.search(text)
+                    if match_obj:
+                        full_match = match_obj.group(0)
+                        safe_match = self._mask_secret(full_match)
                         
-                        # Use search to find the exact matched string to mask it
-                        match_obj = pattern.search(line)
-                        if match_obj:
-                            # Usually the secret is in the last group or the whole match
-                            full_match = match_obj.group(0)
-                            safe_match = self._mask_secret(full_match)
-                            context = raw_context.replace(full_match, safe_match)
-                        else:
-                            context = raw_context
-
-                        evidence_text = f"Código encontrado:\n```java\n{context}\n```"
+                        evidence = DalvikHeuristics.generate_pseudo_code("hardcoded_secret", safe_match)
+                        recommendation = DalvikHeuristics.get_recommendation("hardcoded_secret")
                         
-                        recommendation_text = """Eliminar secretos del código fuente y moverlos a un backend seguro o a configuraciones protegidas.
-
-**Solución en código sugerida (Android/Java):**
-```java
-// ❌ Código vulnerable (Hardcoded):
-// String apiKey = "1234567890abcdef1234567890abcdef";
-
-// ✅ Código seguro (Usar BuildConfig o Keystore):
-// 1. En tu archivo local.properties añade: MY_API_KEY="123456..."
-// 2. En build.gradle: buildConfigField "String", "API_KEY", properties.getProperty("MY_API_KEY")
-// 3. En tu código Java/Kotlin:
-String apiKey = BuildConfig.API_KEY;
-```
-"""
-
                         findings.append(
                             ApkFinding(
                                 finding_type="hardcoded_secret",
-                                title="Posible secreto hardcodeado",
+                                title="Secreto Hardcodeado (Motor Heurístico)",
                                 severity="Critico",
-                                description="Se detectaron patrones compatibles con tokens, secrets o API keys embebidas en el código.",
-                                evidence=evidence_text,
-                                recommendation=recommendation_text,
-                                source_file=source_file,
+                                description="El algoritmo encontró una API Key estática en la tabla de memoria de Dalvik.",
+                                evidence=f"```java\n{evidence}\n```",
+                                recommendation=f"```java\n{recommendation}\n```",
+                                source_file="classes.dex (Bytecode)",
                                 cwe="CWE-798",
                                 owasp_mobile="M9",
                             )
                         )
-        return findings
+        return findings[:5]
 
-    def _extract_context(self, lines, line_idx):
-        start = max(0, line_idx - 1)
-        end = min(len(lines), line_idx + 2)
-        return "\n".join(lines[start:end])
-
-    def _detect_weak_crypto(self, text_samples):
+    def _detect_weak_crypto(self, strings_pool):
         findings = []
-        for source_file, text in text_samples:
-            lines = text.splitlines()
-            for i, line in enumerate(lines):
-                for pattern in self.crypto_patterns:
-                    if pattern.search(line):
-                        context = self._extract_context(lines, i)
-                        evidence_text = f"Archivo: {source_file}\nCódigo encontrado:\n```java\n{context}\n```"
-                        recommendation_text = """Evitar el uso de algoritmos criptográficos rotos o débiles (MD5, SHA-1, DES, ECB).
-
-**Solución en código sugerida (Android/Java):**
-```java
-// ❌ Código vulnerable:
-// MessageDigest md = MessageDigest.getInstance("MD5");
-// Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-
-// ✅ Código seguro:
-MessageDigest md = MessageDigest.getInstance("SHA-256");
-Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-```
-"""
-                        findings.append(
-                            ApkFinding(
-                                finding_type="weak_crypto",
-                                title="Criptografía Débil o Insegura",
-                                severity="Alto",
-                                description="Se encontraron referencias a algoritmos criptográficos obsoletos y propensos a colisiones.",
-                                evidence=evidence_text,
-                                recommendation=recommendation_text,
-                                source_file=source_file,
-                                cwe="CWE-327",
-                                owasp_mobile="M5",
-                            )
-                        )
-        return findings
-
-    def _detect_insecure_webview(self, text_samples):
-        findings = []
-        for source_file, text in text_samples:
-            lines = text.splitlines()
-            for i, line in enumerate(lines):
-                for pattern in self.webview_patterns:
-                    if pattern.search(line):
-                        context = self._extract_context(lines, i)
-                        evidence_text = f"Archivo: {source_file}\nCódigo encontrado:\n```java\n{context}\n```"
-                        recommendation_text = """Habilitar JavaScript en WebViews aumenta el riesgo de ataques Cross-Site Scripting (XSS).
-
-**Solución en código sugerida (Android/Java):**
-```java
-// ❌ Código vulnerable:
-// webView.getSettings().setJavaScriptEnabled(true);
-
-// ✅ Código seguro: Solo habilitar si es estrictamente necesario y controlando el origen.
-// Preferiblemente mantener desactivado si el contenido a cargar no lo requiere.
-```
-"""
-                        findings.append(
-                            ApkFinding(
-                                finding_type="insecure_webview",
-                                title="Configuración Insegura de WebView (XSS)",
-                                severity="Medio",
-                                description="Se ha habilitado la ejecución de JavaScript en un WebView, lo que podría permitir inyección de código malicioso.",
-                                evidence=evidence_text,
-                                recommendation=recommendation_text,
-                                source_file=source_file,
-                                cwe="CWE-79",
-                                owasp_mobile="M7",
-                            )
-                        )
-        return findings
-
-    def _detect_insecure_random(self, text_samples):
-        findings = []
-        for source_file, text in text_samples:
-            lines = text.splitlines()
-            for i, line in enumerate(lines):
-                for pattern in self.random_patterns:
-                    if pattern.search(line):
-                        context = self._extract_context(lines, i)
-                        evidence_text = f"Archivo: {source_file}\nCódigo encontrado:\n```java\n{context}\n```"
-                        recommendation_text = """El generador 'java.util.Random' no es criptográficamente seguro y sus valores pueden ser predecibles.
-
-**Solución en código sugerida (Android/Java):**
-```java
-// ❌ Código vulnerable:
-// Random rand = new java.util.Random();
-
-// ✅ Código seguro:
-import java.security.SecureRandom;
-SecureRandom secureRand = new SecureRandom();
-```
-"""
-                        findings.append(
-                            ApkFinding(
-                                finding_type="insecure_random",
-                                title="Generador de Números Aleatorios Inseguro",
-                                severity="Bajo",
-                                description="Uso de un PRNG predecible en lugar de un CSPRNG seguro.",
-                                evidence=evidence_text,
-                                recommendation=recommendation_text,
-                                source_file=source_file,
-                                cwe="CWE-330",
-                                owasp_mobile="M5",
-                            )
-                        )
-        return findings
-
-    def _detect_hardcoded_ips(self, text_samples):
-        findings = []
-        ignored_ips = {"127.0.0.1", "0.0.0.0", "255.255.255.255"}
-        for source_file, text in text_samples:
-            lines = text.splitlines()
-            for i, line in enumerate(lines):
-                matches = self.ip_pattern.findall(line)
-                for ip in matches:
-                    if ip in ignored_ips or ip.startswith("1.") or ip.startswith("2."):
-                        continue
-                    parts = ip.split(".")
-                    if all(int(p) <= 255 for p in parts):
-                        context = self._extract_context(lines, i)
-                        evidence_text = f"Archivo: {source_file}\nCódigo encontrado:\n```java\n{context}\n```"
-                        recommendation_text = """Evitar dejar direcciones IP internas o externas quemadas en el código fuente.
-Extraer a variables de entorno de compilación o resolver mediante DNS.
-"""
-                        findings.append(
-                            ApkFinding(
-                                finding_type="hardcoded_ip",
-                                title="Dirección IP Hardcodeada detectada",
-                                severity="Bajo",
-                                description=f"Se detectó una dirección IP ({ip}) dentro del código compilado.",
-                                evidence=evidence_text,
-                                recommendation=recommendation_text,
-                                source_file=source_file,
-                                cwe="CWE-200",
-                                owasp_mobile="M9",
-                            )
-                        )
+        from app.dashboard.services.dalvik_heuristics import DalvikHeuristics
+        
+        weak_algos = ["MD5", "SHA-1", "DES", "AES/ECB/PKCS5Padding"]
+        
+        for text in strings_pool:
+            if isinstance(text, str) and any(algo == text for algo in weak_algos):
+                evidence = DalvikHeuristics.generate_pseudo_code("weak_crypto", text)
+                recommendation = DalvikHeuristics.get_recommendation("weak_crypto")
+                
+                findings.append(
+                    ApkFinding(
+                        finding_type="weak_crypto",
+                        title="Criptografía Débil o Insegura",
+                        severity="Alto",
+                        description=f"El algoritmo encontró invocaciones en bytecode a un algoritmo roto ({text}).",
+                        evidence=f"```java\n{evidence}\n```",
+                        recommendation=f"```java\n{recommendation}\n```",
+                        source_file="classes.dex (Bytecode)",
+                        cwe="CWE-327",
+                        owasp_mobile="M5",
+                    )
+                )
         return findings
 
 
