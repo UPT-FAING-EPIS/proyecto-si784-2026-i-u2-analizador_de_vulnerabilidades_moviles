@@ -182,13 +182,13 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid var(--border) !important;
 }
 section[data-testid="stSidebar"] .stButton > button {
-    color: var(--red) !important;
-    border-color: var(--red) !important;
-    background: rgba(255,71,87,.08) !important;
+    color: var(--cyan) !important;
+    border-color: var(--cyan) !important;
+    background: rgba(0,212,255,.08) !important;
     width: 100% !important;
 }
 section[data-testid="stSidebar"] .stButton > button:hover {
-    box-shadow: 0 0 20px rgba(255,71,87,.25) !important;
+    box-shadow: 0 0 20px rgba(0,212,255,.25) !important;
 }
 
 /* ── Sidebar nav items ── */
