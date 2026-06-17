@@ -32,6 +32,11 @@ jobs:
               "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
             }
 
+      - name: Register Azure Resource Providers
+        run: |
+          az provider register --namespace Microsoft.App --wait
+          az provider register --namespace Microsoft.OperationalInsights --wait
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
