@@ -26,6 +26,15 @@ resource "azurerm_container_registry" "acr" {
   admin_enabled       = true
 }
 
+# 1b. Grant AcrPush role to the CI/CD Service Principal
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_role_assignment" "acr_push" {
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPush"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 # 2. Log Analytics Workspace
 resource "azurerm_log_analytics_workspace" "log_analytics" {
   name                = "${var.resource_group_name}-logs"

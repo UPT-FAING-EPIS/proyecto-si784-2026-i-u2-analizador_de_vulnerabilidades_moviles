@@ -60,6 +60,7 @@ jobs:
           terraform apply -auto-approve \
             -target="azurerm_resource_group.rg" \
             -target="azurerm_container_registry.acr" \
+            -target="azurerm_role_assignment.acr_push" \
             -var="supabase_url=${{ secrets.SUPABASE_URL }}" \
             -var="supabase_key=${{ secrets.SUPABASE_KEY }}" \
             -var="image_tag=${{ github.sha }}"
