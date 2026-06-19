@@ -88,13 +88,13 @@ def test_build_report_export_pdf(controller):
         mock_pdf.return_value = b"pdf_data"
         mock_name.return_value = "file.pdf"
         
-        name, data = controller.build_report_export({"id": 1}, [], [], "pdf")
+        name, data = controller.build_report_export({"id": 1}, [], [], "pdf", 1)
         assert name == "file.pdf"
         assert data == b"pdf_data"
 
 def test_build_report_export_invalid_format(controller):
     with pytest.raises(ValueError, match="Formato de exportacion no soportado"):
-        controller.build_report_export({}, [], [], "invalid_format")
+        controller.build_report_export({}, [], [], "invalid_format", 1)
 
 def test_create_apk_scan_invalid_file(controller):
     mock_file = MagicMock()

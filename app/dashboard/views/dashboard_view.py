@@ -22,6 +22,11 @@ NAV_ITEMS = [
 from app.dashboard.config.kb import APK_FINDING_KB, APK_ARTIFACT_KB
 
 
+@st.fragment
+def _file_detail_frag(view, files):
+    view._render_file_detail(files)
+
+
 class DashboardView:
     _CLOSE_DIV = "</div>"
     _BTN_ANALIZAR = "🔍 Analizar"
@@ -719,9 +724,6 @@ class DashboardView:
             with st.expander(f"Problemas ({len(smells)})", expanded=False):
                 for smell in smells[:10]:
                     st.caption(f"• {smell}")
-        if st.button("✕ Quitar", key=f"rfc__{fpath}", use_container_width=True):
-            st.session_state.repo_quitar_fpath = fpath
-            st.rerun()
 
     def _filter_sort_files(self, files: list, search: str, sort_opt: str) -> list:
         visible = [f for f in files if search.lower() in f["file_path"].lower()] if search else files[:]
@@ -735,6 +737,34 @@ class DashboardView:
             visible.sort(key=lambda x: x.get("loc", 0), reverse=True)
         return visible
 
+    def _render_file_row(self, f: dict, is_checked: bool, is_disabled: bool) -> bool:
+        fpath = f["file_path"]
+        c_cb, c_name, c_loc = st.columns([1, 6, 2])
+        with c_cb:
+            val = st.checkbox(
+                "", value=is_checked, disabled=is_disabled,
+                key=f"rcb__{fpath}", label_visibility="collapsed",
+            )
+        with c_name:
+            if is_checked:
+                color = "#00d4ff"
+            elif is_disabled:
+                color = "#475569"
+            else:
+                color = "#cbd5e1"
+            st.markdown(
+                f"<div style='font-size:.8rem;padding-top:.3rem;color:{color};'>"
+                f"{fpath.split('/')[-1]}</div>",
+                unsafe_allow_html=True,
+            )
+        with c_loc:
+            st.markdown(
+                f"<div style='font-size:.75rem;padding-top:.32rem;color:#64748b;text-align:right;'>"
+                f"{f.get('loc', 0)}</div>",
+                unsafe_allow_html=True,
+            )
+        return val
+
     def _render_file_detail(self, files: list) -> None:
         st.markdown("---")
         st.markdown(
@@ -742,13 +772,13 @@ class DashboardView:
             f"<span style='font-size:.95rem;font-weight:700;color:#e2e8f0;'>📁 Detalle por archivos</span>"
             f"<span style='background:rgba(0,212,255,.1);color:#00d4ff;border:1px solid rgba(0,212,255,.2);"
             f"border-radius:20px;padding:1px 8px;font-size:.68rem;font-weight:600;'>{len(files)}</span>"
-            f"<span style='color:#64748b;font-size:.7rem;'>Haz clic en una fila para ver detalle (máx. 2)</span>"
+            f"<span style='color:#64748b;font-size:.7rem;'>Selecciona hasta 2 para comparar</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
 
-        if "repo_sel_files" not in st.session_state:
-            st.session_state.repo_sel_files = []
+        if "repo_sel_paths" not in st.session_state:
+            st.session_state.repo_sel_paths = set()
 
         left, right = st.columns([1, 3])
 
@@ -763,33 +793,23 @@ class DashboardView:
                 key="repo_file_sort", label_visibility="collapsed",
             )
             visible = self._filter_sort_files(files, search, sort_opt)
-            st.session_state.repo_file_path_idx = {f["file_path"]: i for i, f in enumerate(visible)}
+            sel_paths = st.session_state.repo_sel_paths
+            max_reached = len(sel_paths) >= 2
 
-            if "repo_quitar_fpath" in st.session_state:
-                fpath_rm = st.session_state.pop("repo_quitar_fpath")
-                idx_rm = st.session_state.repo_file_path_idx.get(fpath_rm)
-                if idx_rm is not None and "file_list_df" in st.session_state:
-                    cur_rows = list(st.session_state["file_list_df"].get("selection", {}).get("rows", []))
-                    if idx_rm in cur_rows:
-                        cur_rows.remove(idx_rm)
-                    st.session_state["file_list_df"] = {"selection": {"rows": cur_rows}}
-
-            rows = [
-                {"Archivo": f["file_path"].split("/")[-1], "LOC": f.get("loc", 0)}
-                for f in visible
-            ]
             table_height = min(420, max(150, len(visible) * 35 + 40))
-            event = st.dataframe(
-                pd.DataFrame(rows),
-                use_container_width=True,
-                hide_index=True,
-                selection_mode="multi-row",
-                on_select="rerun",
-                height=table_height,
-                key="file_list_df",
-            )
-            sel_indices = (event.selection.rows or [])[:2]
-            selected = [visible[i] for i in sel_indices if i < len(visible)]
+            with st.container(height=table_height):
+                for f in visible:
+                    fpath = f["file_path"]
+                    is_checked = fpath in sel_paths
+                    val = self._render_file_row(f, is_checked, max_reached and not is_checked)
+                    if val and not is_checked:
+                        st.session_state.repo_sel_paths.add(fpath)
+                        st.rerun()
+                    elif not val and is_checked:
+                        st.session_state.repo_sel_paths.discard(fpath)
+                        st.rerun()
+
+            selected = [f for f in visible if f["file_path"] in st.session_state.repo_sel_paths]
 
         with right:
             if not selected:
@@ -797,7 +817,7 @@ class DashboardView:
                     "<div style='height:140px;display:flex;align-items:center;justify-content:center;"
                     "background:rgba(17,24,39,.4);border:1px dashed rgba(0,212,255,.12);"
                     "border-radius:10px;color:#64748b;font-size:.82rem;text-align:center;'>"
-                    "👈 Haz clic en un archivo de la tabla para ver su detalle</div>",
+                    "👈 Selecciona un archivo de la lista para ver su detalle</div>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -828,7 +848,7 @@ class DashboardView:
             c3.metric("🐞 Code smells", result.get("code_smells", "-"))
             files = result.get("files", [])
             if files:
-                self._render_file_detail(files)
+                _file_detail_frag(self, files)
 
     def _render_repo_archivo_local(self, controller):
         st.markdown(
@@ -843,7 +863,7 @@ class DashboardView:
                 ok, result = controller.analizar_carpeta_local(uploaded.name, [uploaded])
             if ok:
                 st.session_state.repo_quality_result = result
-                st.session_state.repo_sel_files = []
+                st.session_state.repo_sel_paths = set()
             else:
                 st.session_state.repo_quality_result = None
                 st.error(f"❌ {result}")
@@ -859,9 +879,23 @@ class DashboardView:
             placeholder="Mi Proyecto", label_visibility="collapsed",
         )
         uploaded_files = st.file_uploader(
-            "Seleccionar archivos", key="repo_carpeta_upload",
+            "Seleccionar archivos o arrastra una carpeta", key="repo_carpeta_upload",
             accept_multiple_files=True, label_visibility="collapsed",
         )
+        import streamlit.components.v1 as components
+        components.html("""<script>
+(function(){
+    function applyDir(){
+        var inputs=window.parent.document.querySelectorAll('input[type="file"][multiple]');
+        inputs.forEach(function(el){
+            el.setAttribute('webkitdirectory','');
+            el.setAttribute('directory','');
+        });
+    }
+    applyDir();
+    new MutationObserver(applyDir).observe(window.parent.document.body,{childList:true,subtree:true});
+})();
+</script>""", height=0)
         analizar_btn = st.button(self._BTN_ANALIZAR, key="repo_carpeta_btn", use_container_width=True, disabled=not uploaded_files)
         if analizar_btn and uploaded_files:
             name = project_name.strip() or "Proyecto"
@@ -869,7 +903,7 @@ class DashboardView:
                 ok, result = controller.analizar_carpeta_local(name, uploaded_files)
             if ok:
                 st.session_state.repo_quality_result = result
-                st.session_state.repo_sel_files = []
+                st.session_state.repo_sel_paths = set()
             else:
                 st.session_state.repo_quality_result = None
                 st.error(f"❌ {result}")
@@ -896,7 +930,7 @@ class DashboardView:
                     ok, result = controller.analizar_repo_github(repo_url)
                 if ok:
                     st.session_state.repo_quality_result = result
-                    st.session_state.repo_sel_files = []
+                    st.session_state.repo_sel_paths = set()
                 else:
                     st.session_state.repo_quality_result = None
                     st.error(f"❌ {result}")
