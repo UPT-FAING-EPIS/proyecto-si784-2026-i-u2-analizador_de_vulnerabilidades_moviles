@@ -33,6 +33,8 @@ def _ping_fragment(controller):
     Solo este bloque se refresca cada N segundos — sin parpadeo de página completa.
     La lista de usuarios se muestra en la página Comunidad, no en el sidebar.
     """
+    if "user" not in st.session_state:
+        return
     user_id = st.session_state.user["id"]
     controller.update_user_ping(user_id)
     online_users = controller.fetch_online_list()

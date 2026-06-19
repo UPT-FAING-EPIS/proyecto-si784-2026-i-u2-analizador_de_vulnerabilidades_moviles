@@ -14,7 +14,8 @@ NAV_ITEMS = [
     {"key": "comunidad",  "icon": "🌐", "label": "Comunidad"},
     {"key": "agente",     "icon": "🤖", "label": "Agente Móvil"},
     {"key": "manual",     "icon": "🔎", "label": "Escaneo Manual"},
-    {"key": "repo_calidad", "icon": "📦", "label": "Calidad Repo"},
+    {"key": "repo_calidad", "icon": "📦", "label": "Analizador Estático"},
+    {"key": "api_externa", "icon": "🔗", "label": "OWASP Verificator"},
 ]
 
 
@@ -22,6 +23,9 @@ from app.dashboard.config.kb import APK_FINDING_KB, APK_ARTIFACT_KB
 
 
 class DashboardView:
+    _CLOSE_DIV = "</div>"
+    _BTN_ANALIZAR = "🔍 Analizar"
+
     # ── APK download ──────────────────────────────────────────────────────────
     def render_apk_download(self, apk_path, filename):
         with open(apk_path, "rb") as apk_file:
@@ -77,7 +81,7 @@ class DashboardView:
         with st.sidebar:
             # Branding
             st.markdown(
-                f"""
+                """
                 <div style="text-align:center; padding: 1rem 0 .5rem;">
                     <div style="font-size:2.5rem;">🛡️</div>
                     <div style="font-size:1.1rem; font-weight:700; color:#00d4ff; margin:.3rem 0 .1rem;">
@@ -123,7 +127,7 @@ class DashboardView:
                 ):
                     st.session_state.nav_section = item["key"]
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown(self._CLOSE_DIV, unsafe_allow_html=True)
 
             # Separador y botón de cierre de sesión (siempre visible)
             st.markdown("<hr/>", unsafe_allow_html=True)
@@ -182,7 +186,7 @@ class DashboardView:
         elif section == "escanear":
             self.render_apk_scanner(user, controller)
         elif section == "historial":
-            self.render_apk_scan_history(user, apk_scans, controller)
+            self.render_apk_scan_history(apk_scans, controller)
         elif section == "comunidad":
             self.render_comunidad()
         elif section == "agente":
@@ -191,6 +195,8 @@ class DashboardView:
             self.render_manual_scan(controller)
         elif section == "repo_calidad":
             self.render_repo_quality(controller)
+        elif section == "api_externa":
+            self.render_api_externa(controller)
 
     # ── Inicio / Overview ─────────────────────────────────────────────────────
     def _render_inicio(self, user, reports, apk_scans):
@@ -263,8 +269,7 @@ class DashboardView:
         st.markdown("## 📤 Escanear APK")
         st.markdown(
             "<div style='color:#64748b; font-size:.88rem; margin-bottom:1rem;'>"
-            "Sube un archivo APK para analizarlo por ingeniería inversa y detectar vulnerabilidades."
-            "</div>",
+            "Sube un archivo APK para analizarlo por ingeniería inversa y detectar vulnerabilidades.</div>",
             unsafe_allow_html=True,
         )
         col_upload, col_btn = st.columns([3, 1])
@@ -292,12 +297,12 @@ class DashboardView:
                 if selected_scan:
                     findings = controller.fetch_apk_findings(scan_id)
                     artifacts = controller.fetch_apk_artifacts(scan_id)
-                    self.render_scan_detail(user, selected_scan, findings, artifacts, controller)
+                    self.render_scan_detail(selected_scan, findings, artifacts, controller)
             else:
                 st.error(f"❌ {result}")
 
     # ── APK scan history ──────────────────────────────────────────────────────
-    def render_apk_scan_history(self, user, apk_scans, controller):
+    def render_apk_scan_history(self, apk_scans, controller):
         st.markdown("## 📋 Historial de escaneos APK")
 
         if not apk_scans:
@@ -359,78 +364,76 @@ class DashboardView:
         selected_scan = next(scan for scan in apk_scans if scan.get("id") == selected_scan_id)
         findings = controller.fetch_apk_findings(selected_scan_id)
         artifacts = controller.fetch_apk_artifacts(selected_scan_id)
-        self.render_scan_detail(user, selected_scan, findings, artifacts, controller)
+        self.render_scan_detail(selected_scan, findings, artifacts, controller)
 
     # ── Scan detail ───────────────────────────────────────────────────────────
-    def render_scan_detail(self, user, scan, findings, artifacts, controller):
+    def _render_finding_expander(self, finding):
+        severity = finding.get("severity", "Info")
+        icon = severity_icon(severity)
+        f_type = finding.get("finding_type", "")
+        kb_info = APK_FINDING_KB.get(f_type, {})
+        with st.expander(
+            f"{icon}  [{severity}]  {finding.get('title', 'Hallazgo')}  —  {f_type or 'general'}"
+        ):
+            st.markdown(f"**📝 Explicación:**\n{finding.get('description', 'Sin descripción.')}")
+            implicacion = kb_info.get("implicacion")
+            if implicacion:
+                st.markdown(f"**⚠️ Lo que implica (Riesgo):**\n{implicacion}")
+            if finding.get("evidence"):
+                st.markdown("**🔍 Evidencia / Código vulnerable:**")
+                st.markdown(finding["evidence"])
+            cols = st.columns(2)
+            if finding.get("source_file"):
+                cols[0].caption(f"📄 Fuente: `{finding['source_file']}`")
+            refs = [v for v in [finding.get("cwe"), finding.get("owasp_mobile")] if v]
+            if refs:
+                cols[1].caption("🔗 " + "  /  ".join(refs))
+            rec = finding.get("recommendation") or kb_info.get("recommendation")
+            if rec:
+                st.info(f"💡 **Recomendación:** {rec}")
+
+    def _render_findings_tab(self, findings):
+        if not findings:
+            st.info("Este escaneo no tiene hallazgos registrados.")
+            return
         severity_order = {"Critico": 0, "Alto": 1, "Medio": 2, "Bajo": 3, "Info": 4}
+        sorted_findings = sorted(findings, key=lambda i: severity_order.get(i.get("severity"), 99))
+        for finding in sorted_findings:
+            self._render_finding_expander(finding)
+
+    def _render_artifacts_tab(self, artifacts):
+        if not artifacts:
+            st.info("Este escaneo no tiene artefactos registrados.")
+            return
+        artifact_df = pd.DataFrame(artifacts)
+        display_cols = [c for c in ["artifact_type", "artifact_value", "source_file"] if c in artifact_df.columns]
+        st.dataframe(
+            artifact_df[display_cols].rename(columns={
+                "artifact_type": "Tipo", "artifact_value": "Valor", "source_file": "Fuente"
+            }),
+            use_container_width=True, hide_index=True,
+        )
+        st.markdown("<div style='height:15px'></div>", unsafe_allow_html=True)
+        st.markdown("### 💡 Guía de análisis de artefactos")
+        unique_types = sorted({a.get("artifact_type") for a in artifacts if a.get("artifact_type")})
+        for a_type in unique_types:
+            kb_info = APK_ARTIFACT_KB.get(a_type)
+            if kb_info:
+                with st.expander(f"📁  {kb_info['titulo']} ({a_type})"):
+                    st.markdown(f"**📝 Explicación:**\n{kb_info['descripcion']}")
+                    st.info(f"💡 **Recomendación:** {kb_info['recommendation']}")
+
+    def render_scan_detail(self, scan, findings, artifacts, controller):
         tab_findings, tab_artifacts, tab_exports = st.tabs(
             ["🔍  Hallazgos", "🗂️  Artefactos", "📤  Exportar"]
         )
-
         with tab_findings:
-            if not findings:
-                st.info("Este escaneo no tiene hallazgos registrados.")
-            else:
-                findings = sorted(findings, key=lambda i: severity_order.get(i.get("severity"), 99))
-                for finding in findings:
-                    severity = finding.get("severity", "Info")
-                    icon = severity_icon(severity)
-                    with st.expander(
-                        f"{icon}  [{severity}]  {finding.get('title', 'Hallazgo')}  —  {finding.get('finding_type', 'general')}"
-                    ):
-                        st.markdown(f"**📝 Explicación:**\n{finding.get('description', 'Sin descripción.')}")
-                        
-                        # Obtener implicación basada en el tipo de hallazgo
-                        f_type = finding.get("finding_type", "")
-                        kb_info = APK_FINDING_KB.get(f_type, {})
-                        implicacion = kb_info.get("implicacion")
-                        if implicacion:
-                            st.markdown(f"**⚠️ Lo que implica (Riesgo):**\n{implicacion}")
-                            
-                        if finding.get("evidence"):
-                            st.markdown("**🔍 Evidencia / Código vulnerable:**")
-                            st.markdown(finding["evidence"])
-                            
-                        cols = st.columns(2)
-                        if finding.get("source_file"):
-                            cols[0].caption(f"📄 Fuente: `{finding['source_file']}`")
-                        refs = [v for v in [finding.get("cwe"), finding.get("owasp_mobile")] if v]
-                        if refs:
-                            cols[1].caption("🔗 " + "  /  ".join(refs))
-                            
-                        # Mostrar recomendación prioritariamente del hallazgo o de la KB
-                        rec = finding.get("recommendation") or kb_info.get("recommendation")
-                        if rec:
-                            st.info(f"💡 **Recomendación:** {rec}")
-
+            self._render_findings_tab(findings)
         with tab_artifacts:
-            if not artifacts:
-                st.info("Este escaneo no tiene artefactos registrados.")
-            else:
-                artifact_df = pd.DataFrame(artifacts)
-                display_cols = [c for c in ["artifact_type", "artifact_value", "source_file"] if c in artifact_df.columns]
-                st.dataframe(
-                    artifact_df[display_cols].rename(columns={
-                        "artifact_type": "Tipo", "artifact_value": "Valor", "source_file": "Fuente"
-                    }),
-                    use_container_width=True, hide_index=True,
-                )
-
-                st.markdown("<div style='height:15px'></div>", unsafe_allow_html=True)
-                st.markdown("### 💡 Guía de análisis de artefactos")
-                # Obtener tipos únicos presentes en este escaneo
-                unique_types = sorted(list({a.get("artifact_type") for a in artifacts if a.get("artifact_type")}))
-                for a_type in unique_types:
-                    kb_info = APK_ARTIFACT_KB.get(a_type)
-                    if kb_info:
-                        with st.expander(f"📁  {kb_info['titulo']} ({a_type})"):
-                            st.markdown(f"**📝 Explicación:**\n{kb_info['descripcion']}")
-                            st.info(f"💡 **Recomendación:** {kb_info['recommendation']}")
-
+            self._render_artifacts_tab(artifacts)
         with tab_exports:
             st.markdown("**Exporta el resultado del escaneo seleccionado**")
-            pdf_name, pdf_data = controller.build_report_export(scan, findings, artifacts, "pdf", user["id"])
+            pdf_name, pdf_data = controller.build_report_export(scan, findings, artifacts, "pdf")
             st.download_button("📕  Descargar PDF", data=pdf_data, file_name=pdf_name, mime="application/pdf", use_container_width=True)
 
     # ── Comunidad ─────────────────────────────────────────────────────────────
@@ -439,7 +442,7 @@ class DashboardView:
         total = len(online_users)
 
         st.markdown(
-            f"""
+            """
             <div style="margin-bottom:1.5rem;">
                 <h1 style="margin:0;">Comunidad</h1>
                 <div style="color:#64748b; font-size:.9rem; margin-top:.25rem;">
@@ -563,77 +566,44 @@ class DashboardView:
             )
 
     # ── Vulnerability history ─────────────────────────────────────────────────
+    def _merge_vuln_reports(self, reports):
+        combined = reports.copy() if reports else []
+        saved_keys = {(r.get("vulnerabilidad"), r.get("dispositivo"), r.get("fecha")) for r in combined}
+        for sr in st.session_state.get("scan_results", []):
+            key = (sr.get("vulnerabilidad"), sr.get("dispositivo"), sr.get("fecha"))
+            if key not in saved_keys:
+                combined.append(sr)
+        severity_order = {"Critico": 0, "Crítico": 0, "Alto": 1, "Medio": 2, "Bajo": 3, "Info": 4}
+        return sorted(combined, key=lambda r: (severity_order.get(r.get("nivel", "Info"), 99), r.get("fecha", "")))
+
+    def _render_vuln_expander(self, vuln):
+        nivel = vuln.get("nivel", "Info")
+        icon = severity_icon(nivel)
+        raw_fecha = vuln.get("fecha", "")
+        fecha_str = str(raw_fecha)[:16].replace("T", " ") if raw_fecha else "Fecha no registrada"
+        with st.expander(
+            f"{icon}  [{nivel}]  {vuln.get('vulnerabilidad', 'Vulnerabilidad')}  ·  "
+            f"📱 {vuln.get('dispositivo', 'Dispositivo')}  ·  📅 {fecha_str}"
+        ):
+            st.markdown(f"**📝 Explicación:**\n{vuln.get('descripcion', 'Sin descripción.')}")
+            if vuln.get("implicacion"):
+                st.markdown(f"**⚠️ Lo que implica (Riesgo):**\n{vuln['implicacion']}")
+            if vuln.get("recommendation"):
+                st.info(f"💡 **Recomendación:** {vuln['recommendation']}")
+            refs = [v for v in [vuln.get("cwe"), vuln.get("owasp")] if v]
+            if refs:
+                st.caption("🔗 " + "  /  ".join(refs))
+
     def render_vulnerability_history(self, reports):
         st.markdown("## 🤖 Historial del agente móvil")
         st.markdown(
             "<div style='color:#64748b; font-size:.88rem; margin-bottom:1rem;'>"
-            "Reportes de seguridad de dispositivos y análisis de red auxiliar."
-            "</div>",
+            "Reportes de seguridad de dispositivos y análisis de red auxiliar.</div>",
             unsafe_allow_html=True,
         )
-        combined_reports = reports.copy() if reports else []
-        
-        # Evitar duplicados basados en vulnerabilidad, dispositivo y fecha
-        saved_keys = set()
-        for r in combined_reports:
-            saved_keys.add((r.get("vulnerabilidad"), r.get("dispositivo"), r.get("fecha")))
-            
-        if st.session_state.get("scan_results"):
-            for sr in st.session_state.scan_results:
-                key = (sr.get("vulnerabilidad"), sr.get("dispositivo"), sr.get("fecha"))
-                if key not in saved_keys:
-                    combined_reports.append(sr)
+        combined_reports = self._merge_vuln_reports(reports)
 
-        if combined_reports:
-            severity_order = {"Critico": 0, "Crítico": 0, "Alto": 1, "Medio": 2, "Bajo": 3, "Info": 4}
-            # Ordenar por severidad (más crítico primero) y luego por fecha (más reciente primero)
-            combined_reports = sorted(
-                combined_reports,
-                key=lambda r: (severity_order.get(r.get("nivel", "Info"), 99), r.get("fecha", "")),
-                reverse=False
-            )
-
-            # Mostrar tabla resumen de métricas/vista general
-            df = pd.DataFrame(combined_reports)
-            display_cols = [c for c in ["dispositivo", "vulnerabilidad", "nivel", "fecha"] if c in df.columns]
-            
-            st.markdown("### 📊 Vista general de hallazgos")
-            st.dataframe(
-                df[display_cols].rename(columns={
-                    "dispositivo": "Dispositivo / IP",
-                    "vulnerabilidad": "Vulnerabilidad",
-                    "nivel": "Severidad",
-                    "fecha": "Fecha"
-                }),
-                use_container_width=True,
-                hide_index=True
-            )
-
-            st.markdown("### 🔍 Detalle técnico y remediación")
-            for vuln in combined_reports:
-                nivel = vuln.get("nivel", "Info")
-                icon = severity_icon(nivel)
-                raw_fecha = vuln.get("fecha", "")
-                fecha_str = str(raw_fecha)[:16].replace("T", " ") if raw_fecha else "Fecha no registrada"
-                
-                with st.expander(
-                    f"{icon}  [{nivel}]  {vuln.get('vulnerabilidad', 'Vulnerabilidad')}  ·  "
-                    f"📱 {vuln.get('dispositivo', 'Dispositivo')}  ·  📅 {fecha_str}"
-                ):
-                    st.markdown(f"**📝 Explicación:**\n{vuln.get('descripcion', 'Sin descripción.')}")
-                    
-                    implicacion = vuln.get("implicacion")
-                    if implicacion:
-                        st.markdown(f"**⚠️ Lo que implica (Riesgo):**\n{implicacion}")
-                        
-                    rec = vuln.get("recommendation")
-                    if rec:
-                        st.info(f"💡 **Recomendación:** {rec}")
-                        
-                    refs = [v for v in [vuln.get("cwe"), vuln.get("owasp")] if v]
-                    if refs:
-                        st.caption("🔗 " + "  /  ".join(refs))
-        else:
+        if not combined_reports:
             st.markdown(
                 """
                 <div style="text-align:center; padding:2rem; background:rgba(17,24,39,.6);
@@ -647,14 +617,31 @@ class DashboardView:
                 """,
                 unsafe_allow_html=True,
             )
+            return
+
+        df = pd.DataFrame(combined_reports)
+        display_cols = [c for c in ["dispositivo", "vulnerabilidad", "nivel", "fecha"] if c in df.columns]
+        st.markdown("### 📊 Vista general de hallazgos")
+        st.dataframe(
+            df[display_cols].rename(columns={
+                "dispositivo": "Dispositivo / IP",
+                "vulnerabilidad": "Vulnerabilidad",
+                "nivel": "Severidad",
+                "fecha": "Fecha",
+            }),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.markdown("### 🔍 Detalle técnico y remediación")
+        for vuln in combined_reports:
+            self._render_vuln_expander(vuln)
 
     # ── Manual scan ───────────────────────────────────────────────────────────
     def render_manual_scan(self, controller):
         st.markdown("## 🔎 Escaneo manual auxiliar")
         st.markdown(
             "<div style='color:#64748b; font-size:.88rem; margin-bottom:1rem;'>"
-            "Escanea una URL, IP o el dispositivo local en busca de vulnerabilidades de red."
-            "</div>",
+            "Escanea una URL, IP o el dispositivo local en busca de vulnerabilidades de red.</div>",
             unsafe_allow_html=True,
         )
         col_input, col_btn = st.columns([3, 1])
@@ -677,43 +664,439 @@ class DashboardView:
             st.rerun()
 
     # ── Calidad de repositorio (GitHub) ──────────────────────────────────────
-    def render_repo_quality(self, controller):
-        st.markdown("## 📦 Calidad de Repositorio (GitHub)")
+    def _render_file_card(self, fdata: dict) -> None:
+        fname = fdata["file_path"].split("/")[-1]
+        fpath = fdata["file_path"]
+        metrics = fdata.get("metrics", {})
+        smells = fdata.get("smells", [])
+        loc = fdata.get("loc", 0)
+        complexity = fdata.get("complexity", 0)
+        nom = metrics.get("nom", 0)
+        noa = metrics.get("noa", 0)
+        smell_color = "#ffa502" if smells else "#00ff88"
+        smell_icon = "⚠️" if smells else "✅"
+        smell_label = f"{len(smells)} problema{'s' if len(smells) != 1 else ''}"
+
         st.markdown(
-            "<div style='color:#64748b; font-size:.88rem; margin-bottom:1rem;'>"
-            "Analiza un repositorio público de GitHub consumiendo el servicio externo "
-            "de análisis de calidad."
-            "</div>",
+            f"""
+            <div style="background:rgba(17,24,39,.9);border:1px solid rgba(0,212,255,.2);
+                        border-radius:10px;padding:.75rem 1rem;">
+              <div style="font-weight:700;font-size:.88rem;color:#e2e8f0;
+                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                   title="{fpath}">{fname}</div>
+              <div style="font-size:.65rem;color:#64748b;margin:.1rem 0 .6rem;
+                          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{fpath}</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+                <div style="background:rgba(0,150,180,.12);border-radius:5px;
+                            padding:.25rem .45rem;display:flex;justify-content:space-between;">
+                  <span style="color:#64748b;font-size:.72rem;">LOC</span>
+                  <span style="color:#00d4ff;font-weight:700;font-size:.78rem;">{loc}</span>
+                </div>
+                <div style="background:rgba(255,71,87,.1);border-radius:5px;
+                            padding:.25rem .45rem;display:flex;justify-content:space-between;">
+                  <span style="color:#64748b;font-size:.72rem;">Complejidad</span>
+                  <span style="color:#ff4757;font-weight:700;font-size:.78rem;">{complexity}</span>
+                </div>
+                <div style="background:rgba(0,150,180,.12);border-radius:5px;
+                            padding:.25rem .45rem;display:flex;justify-content:space-between;">
+                  <span style="color:#64748b;font-size:.72rem;">Métodos</span>
+                  <span style="color:#00d4ff;font-weight:700;font-size:.78rem;">{nom}</span>
+                </div>
+                <div style="background:rgba(255,165,2,.08);border-radius:5px;
+                            padding:.25rem .45rem;display:flex;justify-content:space-between;">
+                  <span style="color:#64748b;font-size:.72rem;">Atributos</span>
+                  <span style="color:#ffa502;font-weight:700;font-size:.78rem;">{noa}</span>
+                </div>
+              </div>
+              <div style="margin-top:.5rem;font-size:.72rem;color:{smell_color};font-weight:600;">
+                {smell_icon} {smell_label}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if smells:
+            with st.expander(f"Problemas ({len(smells)})", expanded=False):
+                for smell in smells[:10]:
+                    st.caption(f"• {smell}")
+        if st.button("✕ Quitar", key=f"rfc__{fpath}", use_container_width=True):
+            st.session_state.repo_quitar_fpath = fpath
+            st.rerun()
+
+    def _filter_sort_files(self, files: list, search: str, sort_opt: str) -> list:
+        visible = [f for f in files if search.lower() in f["file_path"].lower()] if search else files[:]
+        if sort_opt == "A-Z":
+            visible.sort(key=lambda x: x["file_path"].split("/")[-1].lower())
+        elif sort_opt == "Z-A":
+            visible.sort(key=lambda x: x["file_path"].split("/")[-1].lower(), reverse=True)
+        elif sort_opt == "LOC ↑":
+            visible.sort(key=lambda x: x.get("loc", 0))
+        else:
+            visible.sort(key=lambda x: x.get("loc", 0), reverse=True)
+        return visible
+
+    def _render_file_detail(self, files: list) -> None:
+        st.markdown("---")
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;'>"
+            f"<span style='font-size:.95rem;font-weight:700;color:#e2e8f0;'>📁 Detalle por archivos</span>"
+            f"<span style='background:rgba(0,212,255,.1);color:#00d4ff;border:1px solid rgba(0,212,255,.2);"
+            f"border-radius:20px;padding:1px 8px;font-size:.68rem;font-weight:600;'>{len(files)}</span>"
+            f"<span style='color:#64748b;font-size:.7rem;'>Haz clic en una fila para ver detalle (máx. 2)</span>"
+            f"</div>",
             unsafe_allow_html=True,
         )
 
-        col_input, col_btn = st.columns([3, 1])
-        with col_input:
-            repo_url = st.text_input(
-                "Repositorio de GitHub",
-                key="repo_github_url",
-                placeholder="https://github.com/usuario/repo",
-                label_visibility="collapsed",
-            )
-        with col_btn:
-            analizar_btn = st.button("🔍  Analizar", key="repo_github_btn", use_container_width=True)
+        if "repo_sel_files" not in st.session_state:
+            st.session_state.repo_sel_files = []
 
-        if analizar_btn:
-            if not repo_url:
-                st.warning("Ingresa la URL de un repositorio de GitHub.")
+        left, right = st.columns([1, 3])
+
+        with left:
+            col_s, col_o = st.columns([3, 2])
+            search = col_s.text_input(
+                "Filtrar", placeholder="🔍 Filtrar...",
+                key="repo_file_search", label_visibility="collapsed",
+            )
+            sort_opt = col_o.selectbox(
+                "Orden", ["A-Z", "Z-A", "LOC ↑", "LOC ↓"],
+                key="repo_file_sort", label_visibility="collapsed",
+            )
+            visible = self._filter_sort_files(files, search, sort_opt)
+            st.session_state.repo_file_path_idx = {f["file_path"]: i for i, f in enumerate(visible)}
+
+            if "repo_quitar_fpath" in st.session_state:
+                fpath_rm = st.session_state.pop("repo_quitar_fpath")
+                idx_rm = st.session_state.repo_file_path_idx.get(fpath_rm)
+                if idx_rm is not None and "file_list_df" in st.session_state:
+                    cur_rows = list(st.session_state["file_list_df"].get("selection", {}).get("rows", []))
+                    if idx_rm in cur_rows:
+                        cur_rows.remove(idx_rm)
+                    st.session_state["file_list_df"] = {"selection": {"rows": cur_rows}}
+
+            rows = [
+                {"Archivo": f["file_path"].split("/")[-1], "LOC": f.get("loc", 0)}
+                for f in visible
+            ]
+            table_height = min(420, max(150, len(visible) * 35 + 40))
+            event = st.dataframe(
+                pd.DataFrame(rows),
+                use_container_width=True,
+                hide_index=True,
+                selection_mode="multi-row",
+                on_select="rerun",
+                height=table_height,
+                key="file_list_df",
+            )
+            sel_indices = (event.selection.rows or [])[:2]
+            selected = [visible[i] for i in sel_indices if i < len(visible)]
+
+        with right:
+            if not selected:
+                st.markdown(
+                    "<div style='height:140px;display:flex;align-items:center;justify-content:center;"
+                    "background:rgba(17,24,39,.4);border:1px dashed rgba(0,212,255,.12);"
+                    "border-radius:10px;color:#64748b;font-size:.82rem;text-align:center;'>"
+                    "👈 Haz clic en un archivo de la tabla para ver su detalle</div>",
+                    unsafe_allow_html=True,
+                )
             else:
-                with st.spinner("⚙️  Analizando repositorio..."):
-                    ok, result = controller.analizar_repo_github(repo_url)
-                if ok:
-                    st.session_state.repo_quality_result = result
-                else:
-                    st.session_state.repo_quality_result = None
-                    st.error(f"❌ {result}")
+                card_cols = st.columns(len(selected))
+                for i, fdata in enumerate(selected):
+                    with card_cols[i]:
+                        self._render_file_card(fdata)
+
+    def render_repo_quality(self, controller):
+        st.markdown("## 📦 Analizador Estático")
+        tab_archivo, tab_carpeta, tab_repo = st.tabs(["📄 Archivo Local", "📂 Carpeta Local", "🐙 Repositorio GitHub"])
+
+        with tab_archivo:
+            self._render_repo_archivo_local(controller)
+
+        with tab_carpeta:
+            self._render_repo_carpeta_local(controller)
+
+        with tab_repo:
+            self._render_repo_github(controller)
 
         result = st.session_state.get("repo_quality_result")
         if result:
-            st.success(f"✅ Análisis completado: {result.get('proyecto') or repo_url}")
+            st.success(f"✅ Análisis completado: {result.get('proyecto') or '-'}")
             c1, c2, c3 = st.columns(3)
             c1.metric("📏 Líneas de código", result.get("lineas_codigo", "-"))
             c2.metric("🧩 Complejidad", result.get("complejidad", "-"))
             c3.metric("🐞 Code smells", result.get("code_smells", "-"))
+            files = result.get("files", [])
+            if files:
+                self._render_file_detail(files)
+
+    def _render_repo_archivo_local(self, controller):
+        st.markdown(
+            "<div style='color:#64748b; font-size:.88rem; margin-bottom:.8rem;'>"
+            "Sube un archivo de código para analizar su calidad y detectar code smells.</div>",
+            unsafe_allow_html=True,
+        )
+        uploaded = st.file_uploader("Seleccionar archivo", key="repo_archivo_upload", label_visibility="collapsed")
+        analizar_btn = st.button(self._BTN_ANALIZAR, key="repo_archivo_btn", use_container_width=True, disabled=uploaded is None)
+        if analizar_btn and uploaded:
+            with st.spinner("⚙️ Analizando archivo... (puede tardar si el servicio está inactivo)"):
+                ok, result = controller.analizar_carpeta_local(uploaded.name, [uploaded])
+            if ok:
+                st.session_state.repo_quality_result = result
+                st.session_state.repo_sel_files = []
+            else:
+                st.session_state.repo_quality_result = None
+                st.error(f"❌ {result}")
+
+    def _render_repo_carpeta_local(self, controller):
+        st.markdown(
+            "<div style='color:#64748b; font-size:.88rem; margin-bottom:.8rem;'>"
+            "Sube múltiples archivos de un proyecto para analizar la calidad del conjunto.</div>",
+            unsafe_allow_html=True,
+        )
+        project_name = st.text_input(
+            "Nombre del proyecto", key="repo_project_name",
+            placeholder="Mi Proyecto", label_visibility="collapsed",
+        )
+        uploaded_files = st.file_uploader(
+            "Seleccionar archivos", key="repo_carpeta_upload",
+            accept_multiple_files=True, label_visibility="collapsed",
+        )
+        analizar_btn = st.button(self._BTN_ANALIZAR, key="repo_carpeta_btn", use_container_width=True, disabled=not uploaded_files)
+        if analizar_btn and uploaded_files:
+            name = project_name.strip() or "Proyecto"
+            with st.spinner(f"⚙️ Analizando {len(uploaded_files)} archivos... (puede tardar si el servicio está inactivo)"):
+                ok, result = controller.analizar_carpeta_local(name, uploaded_files)
+            if ok:
+                st.session_state.repo_quality_result = result
+                st.session_state.repo_sel_files = []
+            else:
+                st.session_state.repo_quality_result = None
+                st.error(f"❌ {result}")
+
+    def _render_repo_github(self, controller):
+        st.markdown(
+            "<div style='color:#64748b; font-size:.88rem; margin-bottom:.8rem;'>"
+            "Analiza un repositorio público de GitHub consumiendo el servicio externo.</div>",
+            unsafe_allow_html=True,
+        )
+        col_input, col_btn = st.columns([3, 1])
+        with col_input:
+            repo_url = st.text_input(
+                "Repositorio de GitHub", key="repo_github_url",
+                placeholder="https://github.com/usuario/repo", label_visibility="collapsed",
+            )
+        with col_btn:
+            analizar_btn = st.button(self._BTN_ANALIZAR, key="repo_github_btn", use_container_width=True)
+        if analizar_btn:
+            if not repo_url:
+                st.warning("Ingresa la URL de un repositorio de GitHub.")
+            else:
+                with st.spinner("⚙️ Analizando repositorio... (puede tardar hasta 3 min si el servicio está inactivo)"):
+                    ok, result = controller.analizar_repo_github(repo_url)
+                if ok:
+                    st.session_state.repo_quality_result = result
+                    st.session_state.repo_sel_files = []
+                else:
+                    st.session_state.repo_quality_result = None
+                    st.error(f"❌ {result}")
+
+    # ── API de Seguridad Externa ──────────────────────────────────────────────
+    def render_api_externa(self, controller):
+        st.markdown("## 🔗 OWASP Verificator")
+        st.markdown(
+            "<div style='color:#64748b; font-size:.88rem; margin-bottom:1.5rem;'>"
+            "Analiza código, URLs, archivos o repositorios mediante el servicio externo de seguridad."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        tab_nuevo, tab_historial = st.tabs(["🆕 Nuevo análisis", "📋 Historial de reportes"])
+
+        with tab_nuevo:
+            self._render_ext_new_analysis(controller)
+
+        with tab_historial:
+            self._render_ext_reports(controller)
+
+    def _ext_get_target_value(self, tipo: str) -> str:
+        if tipo == "code":
+            return st.text_area(
+                "Código", placeholder="Pega tu código aquí...", height=160,
+                key="ext_code_input", label_visibility="collapsed",
+            ) or ""
+        if tipo == "url":
+            return st.text_input(
+                "URL", placeholder="https://example.com",
+                key="ext_url_input", label_visibility="collapsed",
+            ) or ""
+        if tipo == "archivo":
+            uploaded = st.file_uploader("Archivo", key="ext_file_input", label_visibility="collapsed")
+            return uploaded.read().decode("utf-8", errors="replace") if uploaded else ""
+        return st.text_input(
+            "Repositorio", placeholder="https://github.com/usuario/repo",
+            key="ext_repo_input", label_visibility="collapsed",
+        ) or ""
+
+    def _render_ext_new_analysis(self, controller):
+        st.markdown(
+            "<div style='font-size:.75rem; color:#64748b; text-transform:uppercase;"
+            " letter-spacing:.08em; margin:.75rem 0 .4rem;'>TIPO DE OBJETIVO</div>",
+            unsafe_allow_html=True,
+        )
+
+        tipo_map = {"Código": "code", "URL": "url", "Archivo": "archivo", "Repositorio de GitHub": "github_repo"}
+        tipo_label = st.selectbox(
+            "Tipo de objetivo", list(tipo_map.keys()), key="ext_tipo", label_visibility="collapsed",
+        )
+        tipo = tipo_map[tipo_label]
+        target_value = self._ext_get_target_value(tipo)
+
+        st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+        if st.button("Analizar", key="ext_analizar_btn", use_container_width=True):
+            if not target_value:
+                st.warning("Ingresa el objetivo a analizar.")
+            else:
+                with st.spinner("Analizando..."):
+                    ok, result = controller.analizar_con_api_externa(tipo, target_value)
+                if ok:
+                    st.session_state.ext_analysis_result = result
+                else:
+                    st.error(f"❌ {result}")
+
+        result = st.session_state.get("ext_analysis_result")
+        if result:
+            self._render_ext_result(result)
+
+    def _render_ext_result(self, result):
+        st.divider()
+        st.markdown("### Resultado del análisis")
+
+        score = result.get("score", 0)
+        status = result.get("status", "-")
+        findings = result.get("findings", [])
+
+        if score >= 80:
+            color = "#00ff88"
+        elif score >= 50:
+            color = "#ffa502"
+        else:
+            color = "#ff4757"
+        c1, c2, c3 = st.columns(3)
+        c1.markdown(
+            f"""
+            <div style="background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.08);
+                        border-radius:10px; padding:1rem; text-align:center;">
+                <div style="font-size:.75rem; color:#64748b; text-transform:uppercase;
+                            letter-spacing:.06em; margin-bottom:.4rem;">Score de seguridad</div>
+                <div style="font-size:2rem; font-weight:800; color:{color};">{score}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        c2.metric("Estado", status.capitalize())
+        c3.metric("Hallazgos", len(findings))
+
+        if not findings:
+            st.success("No se encontraron hallazgos de seguridad.")
+            return
+
+        st.markdown("#### Hallazgos")
+        for f in findings:
+            self._render_ext_finding_expander(f)
+
+    _SEV_ICON = {"critical": "🔴", "high": "🔴", "medium": "🟡", "low": "🟢"}
+    _SEV_COLOR = {"critical": "#ff4757", "high": "#ff6b81", "medium": "#ffa502", "low": "#00ff88"}
+
+    @staticmethod
+    def _score_color(score: int) -> str:
+        if score >= 80:
+            return "#00ff88"
+        if score >= 50:
+            return "#ffa502"
+        return "#ff4757"
+
+    def _render_ext_finding_expander(self, f: dict) -> None:
+        sev = f.get("severity", "info").lower()
+        icon = self._SEV_ICON.get(sev, "⚪")
+        color_sev = self._SEV_COLOR.get(sev, "#94a3b8")
+        rule = f.get("rule_id", "")
+        title = f.get("title", "Hallazgo")
+        rule_prefix = f"[{rule}] " if rule else ""
+        with st.expander(f"{icon} **{rule_prefix}{title}**"):
+            st.markdown(
+                f"<span style='color:{color_sev}; font-weight:700;"
+                f" text-transform:uppercase; font-size:.75rem;'>{sev}</span>",
+                unsafe_allow_html=True,
+            )
+            if f.get("description"):
+                st.markdown(f["description"])
+            if f.get("evidence"):
+                st.code(f["evidence"])
+
+    def _render_ext_finding_line(self, f: dict) -> None:
+        sev = f.get("severity", "info").lower()
+        icon = self._SEV_ICON.get(sev, "⚪")
+        col_sev = self._SEV_COLOR.get(sev, "#94a3b8")
+        rule = f.get("rule_id", "")
+        title = f.get("title", "")
+        rule_prefix = f"[{rule}] " if rule else ""
+        st.markdown(
+            f"{icon} <span style='color:{col_sev};font-weight:700;"
+            f"text-transform:uppercase;font-size:.72rem;'>{sev}</span> "
+            f"**{rule_prefix}{title}** — {f.get('description', '')}",
+            unsafe_allow_html=True,
+        )
+
+    def _render_ext_report_card(self, rep: dict) -> None:
+        score = rep.get("score", 0)
+        tipo = rep.get("target_type", "-")
+        status = rep.get("status", "-")
+        rid = rep.get("id", "")
+        findings = rep.get("findings", [])
+        color = self._score_color(score)
+
+        with st.expander(f"#{rid} — {tipo.upper()} — Score: {score} — {len(findings)} hallazgos"):
+            col_s, col_t, col_f = st.columns(3)
+            col_s.markdown(
+                f"<div style='text-align:center;'>"
+                f"<div style='font-size:.7rem;color:#64748b;'>Score</div>"
+                f"<div style='font-size:1.6rem;font-weight:800;color:{color};'>{score}</div></div>",
+                unsafe_allow_html=True,
+            )
+            col_t.metric("Tipo", tipo)
+            col_f.metric("Estado", status.capitalize())
+
+            target_val = rep.get("target_value", "")
+            if target_val:
+                st.markdown("**Objetivo:**")
+                if tipo in ("url", "github_repo"):
+                    st.markdown(f"`{target_val}`")
+                else:
+                    preview = target_val[:300] + ("..." if len(target_val) > 300 else "")
+                    st.code(preview)
+
+            if findings:
+                st.markdown("**Hallazgos:**")
+                for f in findings:
+                    self._render_ext_finding_line(f)
+
+    def _render_ext_reports(self, controller):
+        if st.button("🔄 Cargar reportes", key="ext_load_reports"):
+            with st.spinner("Cargando reportes..."):
+                ok, data = controller.get_reportes_api_externa()
+            if ok:
+                st.session_state.ext_reports = data
+            else:
+                st.error(f"❌ {data}")
+
+        reports = st.session_state.get("ext_reports")
+        if reports is None:
+            st.info("Presiona 'Cargar reportes' para ver el historial.")
+            return
+        if not reports:
+            st.info("No hay reportes disponibles aún.")
+            return
+
+        for rep in reports:
+            self._render_ext_report_card(rep)

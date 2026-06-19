@@ -82,7 +82,7 @@ class DashboardController:
         res = self.model.get_apk_artifacts(scan_id)
         return res.data
 
-    def build_report_export(self, scan, findings, artifacts, export_format, user_id):
+    def build_report_export(self, scan, findings, artifacts, export_format):
         if export_format == "pdf":
             data = self.report_export_service.build_pdf(scan, findings, artifacts)
         else:
@@ -90,6 +90,37 @@ class DashboardController:
 
         file_name = self.report_export_service.build_filename(scan, export_format)
         return file_name, data
+
+    def analizar_carpeta_local(self, project_name: str, uploaded_files):
+        file_list = [(f.name, f.read()) for f in uploaded_files]
+        try:
+            data = self.anzen_api_client.analizar_carpeta(project_name, file_list)
+        except requests.exceptions.HTTPError as exc:
+            try:
+                detail = exc.response.json().get("detail", str(exc))
+            except ValueError:
+                detail = str(exc)
+            return False, f"El servicio externo respondió con error: {detail}"
+        except requests.exceptions.Timeout:
+            return False, "El servicio tardó demasiado en responder. Puede estar iniciando (Render free tier). Espera 30 segundos e intenta de nuevo."
+        except requests.exceptions.RequestException as exc:
+            return False, f"No se pudo contactar el servicio externo: {exc}"
+
+        code_smells_raw = data.get("code_smells")
+        if isinstance(code_smells_raw, dict):
+            code_smells_count = len(code_smells_raw.get("smells", []))
+            files = code_smells_raw.get("files", [])
+        else:
+            code_smells_count = code_smells_raw
+            files = []
+
+        return True, {
+            "proyecto": data.get("project_name", project_name),
+            "lineas_codigo": data.get("loc"),
+            "complejidad": data.get("complexity"),
+            "code_smells": code_smells_count,
+            "files": files,
+        }
 
     def analizar_repo_github(self, repo_url):
         try:
@@ -100,19 +131,56 @@ class DashboardController:
             except ValueError:
                 detail = str(exc)
             return False, f"El servicio externo de analisis de calidad respondio con error: {detail}"
+        except requests.exceptions.Timeout:
+            return False, "El servicio externo tardó demasiado en responder. Puede estar iniciando (Render free tier). Espera 30 segundos e intenta de nuevo."
         except requests.exceptions.RequestException as exc:
             return False, f"No se pudo contactar el servicio externo de analisis de calidad: {exc}"
 
-        code_smells = data.get("code_smells")
-        if isinstance(code_smells, dict):
-            code_smells = len(code_smells.get("smells", []))
+        code_smells_raw = data.get("code_smells")
+        if isinstance(code_smells_raw, dict):
+            code_smells_count = len(code_smells_raw.get("smells", []))
+            files = code_smells_raw.get("files", [])
+        else:
+            code_smells_count = code_smells_raw
+            files = []
 
         return True, {
             "proyecto": data.get("project_name"),
             "lineas_codigo": data.get("loc"),
             "complejidad": data.get("complexity"),
-            "code_smells": code_smells,
+            "code_smells": code_smells_count,
+            "files": files,
+            "_raw": data,
         }
+
+    def analizar_con_api_externa(self, target_type: str, target_value: str):
+        from app.dashboard.services.external_security_client import ExternalSecurityClient
+        client = ExternalSecurityClient()
+        try:
+            result = client.analyze(target_type, target_value)
+            return True, result
+        except requests.exceptions.HTTPError as exc:
+            try:
+                detail = exc.response.json().get("detail", str(exc))
+            except ValueError:
+                detail = str(exc)
+            return False, detail
+        except requests.exceptions.RequestException as exc:
+            return False, f"No se pudo contactar la API externa: {exc}"
+
+    def get_reportes_api_externa(self):
+        from app.dashboard.services.external_security_client import ExternalSecurityClient
+        client = ExternalSecurityClient()
+        try:
+            return True, client.get_reports()
+        except requests.exceptions.HTTPError as exc:
+            try:
+                detail = exc.response.json().get("detail", str(exc))
+            except ValueError:
+                detail = str(exc)
+            return False, detail
+        except requests.exceptions.RequestException as exc:
+            return False, f"No se pudo contactar la API externa: {exc}"
 
     def create_apk_scan(self, user_id, uploaded_file):
         is_valid, message = self.apk_scan_service.validate_apk_file(uploaded_file)

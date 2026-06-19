@@ -16,6 +16,9 @@ class DashboardSettings:
     anzen_external_url = os.getenv(
         "ANZEN_EXTERNAL_URL", "https://anestatico.onrender.com/api/analysis/external/github"
     )
+    anzen_folder_url = os.getenv(
+        "ANZEN_FOLDER_URL", "https://anestatico.onrender.com/api/analysis/external/upload_folder"
+    )
 
 
 def get_supabase_settings():
