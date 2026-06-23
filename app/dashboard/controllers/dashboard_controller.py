@@ -74,6 +74,10 @@ class DashboardController:
         res = self.model.get_apk_scans(user_id)
         return res.data
 
+    def fetch_global_apk_scans(self):
+        res = self.model.get_all_apk_scans()
+        return res.data
+
     def fetch_apk_findings(self, scan_id):
         res = self.model.get_apk_findings(scan_id)
         return res.data

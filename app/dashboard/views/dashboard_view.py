@@ -1,6 +1,7 @@
 import os
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from app.dashboard.config.settings import DashboardSettings
@@ -9,6 +10,7 @@ from app.dashboard.config.styles import severity_icon
 # ── Definición del menú de navegación ─────────────────────────────────────────
 NAV_ITEMS = [
     {"key": "inicio",     "icon": "🏠", "label": "Inicio"},
+    {"key": "metricas",   "icon": "📊", "label": "Métricas"},
     {"key": "escanear",   "icon": "📤", "label": "Escanear APK"},
     {"key": "historial",  "icon": "📋", "label": "Historial APK"},
     {"key": "comunidad",  "icon": "🌐", "label": "Comunidad"},
@@ -42,8 +44,34 @@ class DashboardView:
                 use_container_width=True,
             )
 
+    @st.fragment(run_every=10)
+    def _render_global_dash(self, controller):
+        global_scans = controller.fetch_global_apk_scans()
+        if not global_scans:
+            st.info("Aún no hay análisis en la plataforma.")
+            return
+
+        df_global = pd.DataFrame(global_scans)
+        c1, c2 = st.columns(2)
+        c1.metric("📱 Total de APKs analizados", len(df_global))
+        total_hallazgos = df_global["findings_count"].sum() if "findings_count" in df_global.columns else 0
+        c2.metric("🔍 Hallazgos detectados globalmente", total_hallazgos)
+        
+        st.markdown("### Distribución de Riesgos Globales")
+        if "severity_max" in df_global.columns:
+            severity_counts = df_global["severity_max"].fillna("Info").value_counts().reset_index()
+            severity_counts.columns = ["Severidad", "Cantidad"]
+            
+            col_pie, col_bar = st.columns(2)
+            with col_pie:
+                fig_pie = px.pie(severity_counts, names="Severidad", values="Cantidad", hole=0.4, title="Proporción de Riesgos")
+                st.plotly_chart(fig_pie, use_container_width=True)
+            with col_bar:
+                fig_bar = px.bar(severity_counts, x="Severidad", y="Cantidad", color="Severidad", title="Cantidad por Nivel de Riesgo")
+                st.plotly_chart(fig_bar, use_container_width=True)
+
     # ── Login ─────────────────────────────────────────────────────────────────
-    def render_login(self):
+    def render_login(self, controller):
         st.markdown(
             """
             <div class="login-card">
@@ -55,10 +83,17 @@ class DashboardView:
             unsafe_allow_html=True,
         )
 
+        tab_dash, tab_login, tab_signup = st.tabs(["📊 Dashboard General", "🔑 Iniciar sesión", "✨ Crear cuenta"])
+        
+        username, password, login_button = None, None, None
+        new_username, new_password, signup_button = None, None, None
+
+        with tab_dash:
+            self._render_global_dash(controller)
+
         _, col, _ = st.columns([1, 3, 1])
         with col:
-            tab1, tab2 = st.tabs(["🔑  Iniciar sesión", "✨  Crear cuenta"])
-            with tab1:
+            with tab_login:
                 username = st.text_input("Usuario", key="l_u", placeholder="Tu usuario")
                 password = st.text_input(
                     "Contraseña", type="password", key="l_p", placeholder="••••••••"
@@ -66,7 +101,7 @@ class DashboardView:
                 login_button = st.button(
                     "Iniciar sesión", use_container_width=True, key="login_btn"
                 )
-            with tab2:
+            with tab_signup:
                 new_username = st.text_input(
                     "Nuevo usuario", key="r_u", placeholder="Elige un usuario"
                 )
@@ -188,6 +223,8 @@ class DashboardView:
 
         if section == "inicio":
             self._render_inicio(user, reports, apk_scans)
+        elif section == "metricas":
+            self.render_user_metrics(user, controller)
         elif section == "escanear":
             self.render_apk_scanner(user, controller)
         elif section == "historial":
@@ -268,6 +305,46 @@ class DashboardView:
                     """,
                     unsafe_allow_html=True,
                 )
+
+    # ── User Metrics Dashboard ────────────────────────────────────────────────
+    @st.fragment(run_every=10)
+    def render_user_metrics(self, user, controller):
+        apk_scans = controller.fetch_apk_scans(user["id"])
+        
+        st.markdown(f"## 📊 Métricas de {user['username']}")
+        if not apk_scans:
+            st.info("Aún no has analizado ningún APK. Ve a 'Escanear APK' para comenzar.")
+            return
+
+        df = pd.DataFrame(apk_scans)
+        c1, c2 = st.columns(2)
+        c1.metric("Tus APKs analizados", len(df))
+        total_hallazgos = df["findings_count"].sum() if "findings_count" in df.columns else 0
+        c2.metric("Tus hallazgos totales", total_hallazgos)
+
+        st.divider()
+        st.markdown("### Análisis de Riesgos de tus APKs")
+
+        if "severity_max" in df.columns:
+            severity_counts = df["severity_max"].fillna("Info").value_counts().reset_index()
+            severity_counts.columns = ["Severidad", "Cantidad"]
+            
+            col_pie, col_bar = st.columns(2)
+            with col_pie:
+                fig_pie = px.pie(severity_counts, names="Severidad", values="Cantidad", hole=0.4, title="Proporción de Riesgos")
+                st.plotly_chart(fig_pie, use_container_width=True)
+            with col_bar:
+                fig_bar = px.bar(severity_counts, x="Severidad", y="Cantidad", color="Severidad", title="Cantidad por Nivel de Riesgo")
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+        if "created_at" in df.columns:
+            st.markdown("### Evolución de Análisis en el Tiempo")
+            df["Fecha"] = pd.to_datetime(df["created_at"]).dt.date
+            date_counts = df["Fecha"].value_counts().reset_index()
+            date_counts.columns = ["Fecha", "Cantidad de APKs"]
+            date_counts = date_counts.sort_values("Fecha")
+            fig_line = px.line(date_counts, x="Fecha", y="Cantidad de APKs", markers=True, title="Análisis por Día")
+            st.plotly_chart(fig_line, use_container_width=True)
 
     # ── APK scanner ───────────────────────────────────────────────────────────
     def render_apk_scanner(self, user, controller):

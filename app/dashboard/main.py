@@ -49,7 +49,7 @@ def main():
     # ── Pantalla de login ──────────────────────────────────────────────────
     if "user" not in st.session_state:
         username, password, login_button, new_username, new_password, signup_button = (
-            view.render_login()
+            view.render_login(controller)
         )
         if login_button:
             user = controller.login(username, password)

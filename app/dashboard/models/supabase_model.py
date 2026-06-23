@@ -119,6 +119,14 @@ class SupabaseModel:
             .execute()
         )
 
+    def get_all_apk_scans(self):
+        return (
+            self.supabase.table("apk_scans")
+            .select("id, status, severity_max, findings_count, created_at, user_id")
+            .order("created_at", desc=True)
+            .execute()
+        )
+
     def create_apk_scan(self, payload):
         return self.supabase.table("apk_scans").insert(payload).execute()
 
