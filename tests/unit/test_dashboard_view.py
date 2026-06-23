@@ -10,11 +10,14 @@ def view():
 def test_render_login(mock_st, view):
     # Configurar mocks para tabs e inputs
     mock_st.columns.return_value = [MagicMock(), MagicMock(), MagicMock()]
-    mock_st.tabs.return_value = [MagicMock(), MagicMock()]
+    mock_st.tabs.return_value = [MagicMock(), MagicMock(), MagicMock()]
     mock_st.text_input.return_value = "test_val"
     mock_st.button.return_value = True
 
-    res = view.render_login()
+    controller = MagicMock()
+    controller.fetch_global_apk_scans.return_value = []
+
+    res = view.render_login(controller)
     assert len(res) == 6
     assert mock_st.markdown.called
 
