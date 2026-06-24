@@ -34,8 +34,8 @@ jobs:
 
       - name: Register Azure Resource Providers
         run: |
-          az provider register --namespace Microsoft.App --wait
-          az provider register --namespace Microsoft.OperationalInsights --wait
+          for i in {1..3}; do az provider register --namespace Microsoft.App --wait && break || sleep 15; done
+          for i in {1..3}; do az provider register --namespace Microsoft.OperationalInsights --wait && break || sleep 15; done
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
