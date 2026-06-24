@@ -311,40 +311,90 @@ class DashboardView:
     def render_user_metrics(self, user, controller):
         apk_scans = controller.fetch_apk_scans(user["id"])
         
-        st.markdown(f"## 📊 Métricas de {user['username']}")
+        st.markdown(f"## 📊 Métricas Detalladas de {user['username']}")
         if not apk_scans:
             st.info("Aún no has analizado ningún APK. Ve a 'Escanear APK' para comenzar.")
             return
 
         df = pd.DataFrame(apk_scans)
-        c1, c2 = st.columns(2)
-        c1.metric("Tus APKs analizados", len(df))
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("📦 Tus APKs analizados", len(df))
         total_hallazgos = df["findings_count"].sum() if "findings_count" in df.columns else 0
-        c2.metric("Tus hallazgos totales", total_hallazgos)
+        c2.metric("🔍 Tus hallazgos totales", total_hallazgos)
+        promedio = round(total_hallazgos / len(df), 1) if len(df) > 0 else 0
+        c3.metric("⚖️ Promedio Hallazgos/APK", promedio)
+        
+        # Calcular tamaño total analizado si existe el campo
+        if "file_size_bytes" in df.columns:
+            total_mb = df["file_size_bytes"].sum() / (1024 * 1024)
+            c4.metric("💾 Datos Analizados (MB)", f"{total_mb:.1f}")
+        else:
+            c4.metric("💾 Datos Analizados", "N/A")
 
         st.divider()
-        st.markdown("### Análisis de Riesgos de tus APKs")
+        st.markdown("### 🎯 Análisis de Riesgos de tus APKs")
 
         if "severity_max" in df.columns:
             severity_counts = df["severity_max"].fillna("Info").value_counts().reset_index()
             severity_counts.columns = ["Severidad", "Cantidad"]
             
+            # Asignar colores fijos a los riesgos para mantener la coherencia
+            color_map = {
+                "Critico": "#ff4757", "Alto": "#ffa502", 
+                "Medio": "#ffdd59", "Bajo": "#00ff88", "Info": "#00d4ff"
+            }
+            
             col_pie, col_bar = st.columns(2)
             with col_pie:
-                fig_pie = px.pie(severity_counts, names="Severidad", values="Cantidad", hole=0.4, title="Proporción de Riesgos")
+                fig_pie = px.pie(
+                    severity_counts, names="Severidad", values="Cantidad", hole=0.45, 
+                    title="Proporción de Severidad", color="Severidad", color_discrete_map=color_map,
+                    template="plotly_dark"
+                )
+                fig_pie.update_traces(hoverinfo='label+percent', textfont_size=14, marker=dict(line=dict(color='#0a0e1a', width=2)))
                 st.plotly_chart(fig_pie, use_container_width=True)
             with col_bar:
-                fig_bar = px.bar(severity_counts, x="Severidad", y="Cantidad", color="Severidad", title="Cantidad por Nivel de Riesgo")
+                fig_bar = px.bar(
+                    severity_counts, x="Severidad", y="Cantidad", color="Severidad", 
+                    title="Volumen Absoluto por Nivel", color_discrete_map=color_map,
+                    template="plotly_dark"
+                )
+                fig_bar.update_layout(showlegend=False)
                 st.plotly_chart(fig_bar, use_container_width=True)
 
-        if "created_at" in df.columns:
-            st.markdown("### Evolución de Análisis en el Tiempo")
-            df["Fecha"] = pd.to_datetime(df["created_at"]).dt.date
-            date_counts = df["Fecha"].value_counts().reset_index()
-            date_counts.columns = ["Fecha", "Cantidad de APKs"]
-            date_counts = date_counts.sort_values("Fecha")
-            fig_line = px.line(date_counts, x="Fecha", y="Cantidad de APKs", markers=True, title="Análisis por Día")
-            st.plotly_chart(fig_line, use_container_width=True)
+        col_line, col_ranking = st.columns([1.5, 1])
+        with col_line:
+            if "created_at" in df.columns:
+                st.markdown("### 📈 Evolución en el Tiempo")
+                df["Fecha"] = pd.to_datetime(df["created_at"]).dt.date
+                date_counts = df["Fecha"].value_counts().reset_index()
+                date_counts.columns = ["Fecha", "Cantidad de APKs"]
+                date_counts = date_counts.sort_values("Fecha")
+                fig_line = px.line(
+                    date_counts, x="Fecha", y="Cantidad de APKs", markers=True, 
+                    title="Actividad de Escaneo por Día", template="plotly_dark"
+                )
+                fig_line.update_traces(line_color="#00d4ff", marker=dict(size=8, color="#00ff88"))
+                st.plotly_chart(fig_line, use_container_width=True)
+
+        with col_ranking:
+            st.markdown("### 🏆 Top 5 APKs Vulnerables")
+            if "findings_count" in df.columns:
+                top_apks = df.sort_values("findings_count", ascending=False).head(5)
+                display_cols = ["file_name", "findings_count", "severity_max"]
+                display_cols = [c for c in display_cols if c in top_apks.columns]
+                
+                # Función para colorear según severidad
+                def color_severity(val):
+                    color_dict = {"Critico": "#ff4757", "Alto": "#ffa502", "Medio": "#ffdd59", "Bajo": "#00ff88", "Info": "#00d4ff"}
+                    color = color_dict.get(val, "white")
+                    return f'color: {color}; font-weight: bold'
+                
+                styled_df = top_apks[display_cols].rename(columns={
+                    "file_name": "Nombre APK", "findings_count": "Hallazgos", "severity_max": "Nivel"
+                }).style.map(color_severity, subset=['Nivel'])
+                
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
     # ── APK scanner ───────────────────────────────────────────────────────────
     def render_apk_scanner(self, user, controller):

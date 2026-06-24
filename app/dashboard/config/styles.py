@@ -39,6 +39,17 @@ html, body, [class*="css"] {
 ::-webkit-scrollbar-track { background: var(--bg2); }
 ::-webkit-scrollbar-thumb { background: var(--cyan-dim); border-radius: 3px; }
 
+/* ── Animaciones Base ── */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulseGlow {
+    0% { box-shadow: 0 0 10px rgba(0, 212, 255, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.6); }
+    100% { box-shadow: 0 0 10px rgba(0, 212, 255, 0.2); }
+}
+
 /* ── Cards / glass panels ── */
 div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"],
 div[data-testid="stForm"] {
@@ -46,6 +57,7 @@ div[data-testid="stForm"] {
     border: 1px solid var(--border) !important;
     border-radius: 14px !important;
     backdrop-filter: blur(12px);
+    animation: fadeInUp 0.6s ease-out forwards;
 }
 
 /* ── Metrics ── */
@@ -55,10 +67,12 @@ div[data-testid="stMetric"] {
     border-radius: 12px !important;
     padding: 1rem 1.25rem !important;
     transition: transform .2s, border-color .2s;
+    animation: fadeInUp 0.5s ease-out forwards;
 }
 div[data-testid="stMetric"]:hover {
     transform: translateY(-3px);
     border-color: var(--cyan) !important;
+    animation: pulseGlow 1.5s infinite;
 }
 div[data-testid="stMetricValue"] {
     font-size: 2rem !important;
