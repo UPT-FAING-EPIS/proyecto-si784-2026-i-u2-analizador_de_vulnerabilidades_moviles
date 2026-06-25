@@ -717,6 +717,8 @@ class DashboardView:
             f"{icon}  [{nivel}]  {vuln.get('vulnerabilidad', 'Vulnerabilidad')}  ·  "
             f"📱 {vuln.get('dispositivo', 'Dispositivo')}  ·  📅 {fecha_str}"
         ):
+            if vuln.get("categoria"):
+                st.caption(f"📂 Categoría: **{vuln['categoria']}**")
             st.markdown(f"**📝 Explicación:**\n{vuln.get('descripcion', 'Sin descripción.')}")
             if vuln.get("implicacion"):
                 st.markdown(f"**⚠️ Lo que implica (Riesgo):**\n{vuln['implicacion']}")
@@ -752,13 +754,14 @@ class DashboardView:
             return
 
         df = pd.DataFrame(combined_reports)
-        display_cols = [c for c in ["dispositivo", "vulnerabilidad", "nivel", "fecha"] if c in df.columns]
+        display_cols = [c for c in ["dispositivo", "vulnerabilidad", "nivel", "categoria", "fecha"] if c in df.columns]
         st.markdown("### 📊 Vista general de hallazgos")
         st.dataframe(
             df[display_cols].rename(columns={
-                "dispositivo": "Dispositivo / IP",
+                "dispositivo": "Dispositivo",
                 "vulnerabilidad": "Vulnerabilidad",
                 "nivel": "Severidad",
+                "categoria": "Categoría",
                 "fecha": "Fecha",
             }),
             use_container_width=True,
