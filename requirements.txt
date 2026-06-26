@@ -12,3 +12,4 @@ pytest-cov
 httpx
 reportlab
 plotly
+python-dotenv

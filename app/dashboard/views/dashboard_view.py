@@ -754,8 +754,116 @@ class DashboardView:
             return
 
         df = pd.DataFrame(combined_reports)
+
+        # ── Métricas rápidas ──────────────────────────────────────────────────
+        total = len(df)
+        criticos = len(df[df["nivel"].isin(["Critico", "Crítico"])]) if "nivel" in df.columns else 0
+        altos    = len(df[df["nivel"] == "Alto"])                     if "nivel" in df.columns else 0
+        dispositivos = df["dispositivo"].nunique()                    if "dispositivo" in df.columns else 0
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total hallazgos",  total)
+        m2.metric("Críticos",         criticos)
+        m3.metric("Altos",            altos)
+        m4.metric("Dispositivos",     dispositivos)
+
+        st.divider()
+
+        # ── Gráficos ──────────────────────────────────────────────────────────
+        st.markdown("### 📊 Análisis visual")
+        col_pie, col_bar = st.columns(2)
+
+        severity_order = ["Critico", "Crítico", "Alto", "Medio", "Bajo", "Info"]
+        severity_colors = {
+            "Critico": "#ef4444", "Crítico": "#ef4444",
+            "Alto":    "#f97316",
+            "Medio":   "#eab308",
+            "Bajo":    "#22c55e",
+            "Info":    "#3b82f6",
+        }
+
+        if "nivel" in df.columns:
+            nivel_counts = (
+                df["nivel"]
+                .value_counts()
+                .reindex([s for s in severity_order if s in df["nivel"].values], fill_value=0)
+                .reset_index()
+            )
+            nivel_counts.columns = ["Severidad", "Cantidad"]
+
+            with col_pie:
+                fig_pie = px.pie(
+                    nivel_counts,
+                    names="Severidad",
+                    values="Cantidad",
+                    title="Distribución por severidad",
+                    color="Severidad",
+                    color_discrete_map=severity_colors,
+                    hole=0.4,
+                )
+                fig_pie.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#e2e8f0",
+                    legend=dict(font=dict(color="#e2e8f0")),
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+            with col_bar:
+                fig_bar = px.bar(
+                    nivel_counts,
+                    x="Severidad",
+                    y="Cantidad",
+                    title="Hallazgos por nivel de riesgo",
+                    color="Severidad",
+                    color_discrete_map=severity_colors,
+                    text="Cantidad",
+                )
+                fig_bar.update_traces(textposition="outside")
+                fig_bar.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font_color="#e2e8f0",
+                    showlegend=False,
+                    xaxis=dict(color="#e2e8f0"),
+                    yaxis=dict(color="#e2e8f0", gridcolor="rgba(255,255,255,0.05)"),
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+        if "categoria" in df.columns and df["categoria"].str.strip().ne("").any():
+            st.markdown("#### Hallazgos por categoría")
+            cat_counts = (
+                df[df["categoria"].str.strip().ne("")]
+                ["categoria"]
+                .value_counts()
+                .reset_index()
+            )
+            cat_counts.columns = ["Categoría", "Cantidad"]
+            fig_cat = px.bar(
+                cat_counts,
+                x="Cantidad",
+                y="Categoría",
+                orientation="h",
+                title="Vulnerabilidades por categoría de análisis",
+                color="Cantidad",
+                color_continuous_scale=["#22c55e", "#eab308", "#ef4444"],
+                text="Cantidad",
+            )
+            fig_cat.update_traces(textposition="outside")
+            fig_cat.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font_color="#e2e8f0",
+                xaxis=dict(color="#e2e8f0", gridcolor="rgba(255,255,255,0.05)"),
+                yaxis=dict(color="#e2e8f0"),
+                coloraxis_showscale=False,
+            )
+            st.plotly_chart(fig_cat, use_container_width=True)
+
+        st.divider()
+
+        # ── Tabla ─────────────────────────────────────────────────────────────
         display_cols = [c for c in ["dispositivo", "vulnerabilidad", "nivel", "categoria", "fecha"] if c in df.columns]
-        st.markdown("### 📊 Vista general de hallazgos")
+        st.markdown("### 📋 Vista general de hallazgos")
         st.dataframe(
             df[display_cols].rename(columns={
                 "dispositivo": "Dispositivo",
