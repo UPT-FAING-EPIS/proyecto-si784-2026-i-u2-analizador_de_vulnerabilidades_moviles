@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY app/__init__.py ./app/__init__.py
 COPY app/api ./app/api
+COPY app/dashboard ./app/dashboard
 
 EXPOSE 8000
 
