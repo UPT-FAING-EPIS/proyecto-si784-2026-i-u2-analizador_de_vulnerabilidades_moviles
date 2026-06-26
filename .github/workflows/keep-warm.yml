@@ -2,7 +2,7 @@ name: Keep API Warm
 
 on:
   schedule:
-    - cron: "*/4 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -11,9 +11,6 @@ jobs:
     steps:
       - name: Ping API health
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-            https://anzencore-api.yellowsand-01bb3852.eastus2.azurecontainerapps.io/api/v1/health)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 70 \
+            https://anzencore-api.yellowsand-01bb3852.eastus2.azurecontainerapps.io/api/v1/health) || STATUS="timeout"
           echo "Health status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "Warning: API returned $STATUS"
-          fi
