@@ -7,7 +7,6 @@ AnzenCore es un analizador de vulnerabilidades moviles orientado a APKs Android.
 - Dashboard: Streamlit bajo arquitectura MVC.
 - API: FastAPI para integraciones y recepcion de reportes.
 - Base de datos: Supabase PostgreSQL.
-- Mobile: agente Android/Kivy como componente complementario.
 - Infraestructura: Azure Container Apps con Terraform.
 - Seguridad: Sonar, Semgrep y Snyk en GitHub Actions.
 
@@ -168,16 +167,6 @@ terraform fmt -recursive
 terraform validate
 terraform plan
 terraform apply
-```
-
-## Build del APK
-
-En WSL/Linux:
-
-```bash
-cd mobile/agent
-buildozer android debug
-cp bin/*.apk ../../assets/app-debug.apk
 ```
 
 ## Roadmap
