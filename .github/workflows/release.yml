@@ -20,4 +20,4 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            assets/AnzenCore_Agent.apk
+            assets/app-debug.apk

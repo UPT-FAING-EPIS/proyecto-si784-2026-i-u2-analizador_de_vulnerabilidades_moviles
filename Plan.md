@@ -101,7 +101,7 @@ AnzenCore/
       buildozer.spec
       requirements.txt
   assets/
-    AnzenCore_Agent.apk
+    app-debug.apk
   infra/
     terraform/
       environments/
@@ -986,7 +986,7 @@ AnzenCore/
       buildozer.spec
       requirements.txt
   assets/
-    AnzenCore_Agent.apk
+    app-debug.apk
   infra/
     terraform/
       environments/
@@ -1329,7 +1329,7 @@ Pasos:
 2. Configurar URL de API o endpoint.
 3. Evitar escribir directo en Supabase si ya existe API.
 4. Compilar con Buildozer en WSL/Linux.
-5. Copiar APK a assets/AnzenCore_Agent.apk.
+5. Copiar APK a assets/app-debug.apk.
 6. Probar instalacion en movil.
 7. Probar envio de vulnerabilidades.
 8. Publicar APK en GitHub Release.
@@ -1341,7 +1341,7 @@ Comandos base:
 ```bash
 cd mobile/agent
 python -m buildozer android debug
-cp bin/*.apk ../../assets/AnzenCore_Agent.apk
+cp bin/*.apk ../../assets/app-debug.apk
 ```
 
 ### 10. GitHub Releases y Packages
@@ -2270,7 +2270,7 @@ Tareas:
 - Remover escritura directa a Supabase.
 - Mostrar errores HTTP reales.
 - Recompilar APK.
-- Reemplazar `assets/AnzenCore_Agent.apk`.
+- Reemplazar `assets/app-debug.apk`.
 - Probar en movil real.
 
 Entregables:

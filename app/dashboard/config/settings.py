@@ -7,7 +7,7 @@ class DashboardSettings:
     page_title = "AnzenCore"
     page_icon = "shield"
     layout = "wide"
-    apk_path = "assets/AnzenCore_Agent.apk"
+    apk_path = "assets/app-debug.apk"
     apk_filename = "AnzenCore.apk"
     # Intervalo de ping/online-users en segundos (st.fragment run_every)
     # No causa parpadeo de página completa — solo refresca el bloque del monitor.

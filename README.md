@@ -177,7 +177,7 @@ En WSL/Linux:
 ```bash
 cd mobile/agent
 buildozer android debug
-cp bin/*.apk ../../assets/AnzenCore_Agent.apk
+cp bin/*.apk ../../assets/app-debug.apk
 ```
 
 ## Roadmap
