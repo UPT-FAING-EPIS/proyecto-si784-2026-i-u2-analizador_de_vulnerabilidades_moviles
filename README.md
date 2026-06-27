@@ -1,14 +1,36 @@
 # AnzenCore
 
-AnzenCore es un analizador de vulnerabilidades moviles orientado a APKs Android. El flujo principal permite subir un APK, aplicar analisis estatico e ingenieria inversa inicial, registrar hallazgos en Supabase PostgreSQL y exportar reportes.
+AnzenCore es un analizador de vulnerabilidades móviles y calidad de código. El flujo principal permite analizar proyectos, aplicar análisis estático, registrar hallazgos en Supabase PostgreSQL y exportar reportes. También ofrece una API para análisis de repositorios de GitHub y carpetas locales.
+
+## Objetivos del Proyecto
+
+- **Análisis Automatizado:** Proveer un mecanismo rápido y automatizado para la detección de vulnerabilidades, *code smells* y métricas de complejidad.
+- **Integración Continua:** Facilitar a otros servicios y microservicios externos la capacidad de analizar repositorios y carpetas sin requerir autenticación para esos flujos (*stateless*).
+- **Visualización Centralizada:** Permitir a los desarrolladores visualizar y gestionar los hallazgos mediante un dashboard interactivo.
+
+## Stack Tecnológico
+
+El proyecto está construido utilizando las siguientes tecnologías:
+
+- **Frontend / Dashboard:** [Python](https://www.python.org/) y [Streamlit](https://streamlit.io/) (Arquitectura MVC).
+- **Backend / API REST:** [Python](https://www.python.org/) y [FastAPI](https://fastapi.tiangolo.com/).
+- **Base de Datos:** [PostgreSQL](https://www.postgresql.org/) mediante [Supabase](https://supabase.com/).
+- **Infraestructura / Despliegue:** [Docker](https://www.docker.com/), [Terraform](https://www.terraform.io/) y [Azure Container Apps](https://azure.microsoft.com/en-us/products/container-apps/).
+- **CI/CD & DevSecOps:** [GitHub Actions](https://github.com/features/actions), [SonarQube](https://www.sonarsource.com/), [Semgrep](https://semgrep.dev/) y [Snyk](https://snyk.io/).
+- **Testing:** [Pytest](https://docs.pytest.org/) (Unitario/Integración), [Behave](https://behave.readthedocs.io/) (BDD) y [Mutmut](https://mutmut.readthedocs.io/) (Mutación).
 
 ## Arquitectura
 
-- Dashboard: Streamlit bajo arquitectura MVC.
-- API: FastAPI para integraciones y recepcion de reportes.
-- Base de datos: Supabase PostgreSQL.
-- Infraestructura: Azure Container Apps con Terraform.
-- Seguridad: Sonar, Semgrep y Snyk en GitHub Actions.
+A continuación se muestra el diagrama conceptual de la solución:
+
+```mermaid
+graph TD
+    User([Usuario / Desarrollador]) -->|Sube APK o Código| Dashboard[Dashboard - Streamlit]
+    External([Sistemas Externos]) -->|Peticiones HTTP| API[API REST - FastAPI]
+    Dashboard -->|Envía datos / Solicita reportes| API
+    API -->|Ejecuta Análisis Estático| Analyzer[Motor de Análisis]
+    API -->|Lectura / Escritura de Datos| Supabase[(Supabase - PostgreSQL)]
+```
 
 ## Requisitos
 
