@@ -31,4 +31,4 @@ tfplan
 !*.tfvars.example
 
 *.apk
-!assets/AnzenCore_Agent.apk
+!assets/app-debug.apk
