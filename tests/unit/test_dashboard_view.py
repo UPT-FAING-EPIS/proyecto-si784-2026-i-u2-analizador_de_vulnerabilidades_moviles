@@ -25,7 +25,8 @@ def test_render_login(mock_st, view):
 @patch("app.dashboard.views.dashboard_view.os.path.exists")
 @patch("app.dashboard.views.dashboard_view.os.path.getsize")
 @patch("app.dashboard.views.dashboard_view.pd.DataFrame")
-def test_render_dashboard(mock_df, mock_getsize, mock_exists, mock_st, view):
+@patch("builtins.open", new_callable=MagicMock)
+def test_render_dashboard(mock_open, mock_df, mock_getsize, mock_exists, mock_st, view):
     mock_exists.return_value = True
     mock_getsize.return_value = 100
     mock_df.return_value.columns = ["severity_max", "file_name", "id", "dispositivo"] # Asegurar que los checks de columnas pasen
