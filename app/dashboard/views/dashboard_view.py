@@ -700,9 +700,9 @@ class DashboardView:
     # ── Vulnerability history ─────────────────────────────────────────────────
     def _merge_vuln_reports(self, reports):
         combined = reports.copy() if reports else []
-        saved_keys = {(r.get("vulnerabilidad"), r.get("dispositivo"), r.get("fecha")) for r in combined}
+        saved_keys = {(r.get("vulnerabilidad"), r.get("dispositivo")) for r in combined}
         for sr in st.session_state.get("scan_results", []):
-            key = (sr.get("vulnerabilidad"), sr.get("dispositivo"), sr.get("fecha"))
+            key = (sr.get("vulnerabilidad"), sr.get("dispositivo"))
             if key not in saved_keys:
                 combined.append(sr)
         severity_order = {"Critico": 0, "Crítico": 0, "Alto": 1, "Medio": 2, "Bajo": 3, "Info": 4}
@@ -904,7 +904,28 @@ class DashboardView:
                 st.session_state.scan_results = controller.scan_vulnerabilities(
                     user_id, target if target else None
                 )
+                st.session_state.manual_scan_success = True
             st.rerun()
+
+        if st.session_state.get("manual_scan_success") and st.session_state.get("scan_results"):
+            st.success("✅ Análisis realizado correctamente y guardado en el historial del agente móvil.")
+            st.markdown("### 📊 Resultados del escaneo")
+            df = pd.DataFrame(st.session_state.scan_results)
+            display_cols = [c for c in ["dispositivo", "vulnerabilidad", "nivel", "categoria"] if c in df.columns]
+            if display_cols:
+                st.dataframe(
+                    df[display_cols].rename(columns={
+                        "dispositivo": "Dispositivo",
+                        "vulnerabilidad": "Vulnerabilidad",
+                        "nivel": "Severidad",
+                        "categoria": "Categoría",
+                    }),
+                    use_container_width=True,
+                    hide_index=True,
+                )
+            st.markdown("#### Detalle técnico")
+            for vuln in st.session_state.scan_results:
+                self._render_vuln_expander(vuln)
 
     # ── Calidad de repositorio (GitHub) ──────────────────────────────────────
     def _render_file_card(self, fdata: dict) -> None:
