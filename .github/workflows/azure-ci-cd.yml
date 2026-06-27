@@ -10,6 +10,8 @@ on:
       - "Dockerfile.*"
       - "requirements.txt"
       - "assets/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
 
 env:
   ACR_NAME: "acranzencoreprod123"
