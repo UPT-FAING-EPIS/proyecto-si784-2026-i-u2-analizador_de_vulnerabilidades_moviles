@@ -9,6 +9,7 @@ on:
       - "infra/**"
       - "Dockerfile.*"
       - "requirements.txt"
+      - "assets/**"
 
 env:
   ACR_NAME: "acranzencoreprod123"
