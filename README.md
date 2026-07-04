@@ -217,3 +217,160 @@ python -m mutmut run --paths-to-mutate app/dashboard/services/report_export_serv
 
 - **Integración Externa:** Si deseas consumir la API desde otro servicio o frontend, revisa `API_INTEGRATION.md`.
 - **Evolución del Proyecto:** Ver `docs/roadmap/roadmap.md`.
+
+---
+
+## 📐 Diagramas Complementarios de Arquitectura
+
+<details>
+<summary><b>1. Diagrama de Casos de Uso</b></summary>
+
+```mermaid
+usecaseDiagram
+    actor Usuario
+    actor Administrador
+    
+    Usuario --> (Subir aplicación APK)
+    Usuario --> (Visualizar Reporte de Vulnerabilidades)
+    Usuario --> (Exportar Resultados)
+    
+    Administrador --> (Gestionar Reglas de Escaneo)
+    Administrador --> (Ver Estadísticas Generales)
+    
+    (Subir aplicación APK) ..> (Iniciar Escaneo Estático) : <<include>>
+```
+</details>
+
+<details>
+<summary><b>2. Diagrama de Secuencia (Escaneo de APK)</b></summary>
+
+```mermaid
+sequenceDiagram
+    actor Usuario
+    participant InterfazWeb as Frontend UI
+    participant APIGateway as API Gateway
+    participant Scanner as Motor de Análisis
+    participant DB as Base de Datos
+
+    Usuario->>+InterfazWeb: Sube archivo APK
+    InterfazWeb->>+APIGateway: POST /api/scan (APK)
+    APIGateway->>+Scanner: Iniciar análisis de seguridad
+    Scanner->>Scanner: Extraer código (Decompilación)
+    Scanner->>Scanner: Ejecutar Semgrep / Snyk
+    Scanner->>+DB: Guardar resultados del análisis
+    DB-->>-Scanner: OK
+    Scanner-->>-APIGateway: Resultados Listos (ID)
+    APIGateway-->>-InterfazWeb: 200 OK (Reporte JSON)
+    InterfazWeb-->>-Usuario: Muestra Dashboard con Vulnerabilidades
+```
+</details>
+
+<details>
+<summary><b>3. Diagrama de Clases</b></summary>
+
+```mermaid
+classDiagram
+    class Usuario {
+        +String idUsuario
+        +String nombre
+        +subirAPK()
+        +verReporte()
+    }
+    
+    class Analizador {
+        +String apkPath
+        +List~Regla~ reglas
+        +iniciarEscaneoEstático()
+        +iniciarEscaneoDinámico()
+    }
+    
+    class Reporte {
+        +String idReporte
+        +Date fecha
+        +List~Vulnerabilidad~ vulnerabilidades
+        +generarPDF()
+        +generarHTML()
+    }
+    
+    class Vulnerabilidad {
+        +String cve
+        +String severidad
+        +String descripcion
+        +String lineaDeCodigo
+    }
+
+    Usuario "1" -- "*" Reporte : Genera
+    Analizador "1" -- "*" Reporte : Produce
+    Reporte "1" *-- "*" Vulnerabilidad : Contiene
+```
+</details>
+
+<details>
+<summary><b>4. Diagrama de Componentes</b></summary>
+
+```mermaid
+componentDiagram
+    package "Frontend" {
+        [Streamlit Dashboard]
+    }
+    
+    package "Backend API" {
+        [FastAPI Gateway]
+        [Servicio de Autenticación]
+        [Orquestador de Tareas]
+    }
+    
+    package "Core Analizador" {
+        [Motor Semgrep SAST]
+        [Motor Snyk DAST]
+        [Decompilador APK]
+    }
+    
+    database "Almacenamiento" {
+        [Supabase / PostgreSQL]
+        [Almacenamiento de Archivos]
+    }
+
+    [Streamlit Dashboard] --> [FastAPI Gateway]
+    [FastAPI Gateway] --> [Servicio de Autenticación]
+    [FastAPI Gateway] --> [Orquestador de Tareas]
+    [Orquestador de Tareas] --> [Motor Semgrep SAST]
+    [Orquestador de Tareas] --> [Motor Snyk DAST]
+    [Orquestador de Tareas] --> [Almacenamiento de Archivos]
+    [Motor Semgrep SAST] --> [Supabase / PostgreSQL]
+```
+</details>
+
+<details>
+<summary><b>5. Diagrama de Despliegue e Infraestructura</b></summary>
+
+```mermaid
+graph TD
+    subgraph "Cliente"
+        A[Navegador Web]
+    end
+    
+    subgraph "Nube (Ej. Azure Container Apps)"
+        B[Load Balancer]
+        
+        subgraph "Contenedores Docker"
+            C[Servidor Frontend - Streamlit]
+            D[Servidor Backend API - FastAPI]
+            E[Worker de Análisis]
+        end
+        
+        subgraph "Servicios Administrados"
+            F[(Supabase PostgreSQL)]
+            G[(Almacenamiento Local / S3)]
+        end
+    end
+
+    A -->|HTTPS| B
+    B --> C
+    B --> D
+    D --> E
+    D --> F
+    E --> G
+    E --> F
+```
+</details>
