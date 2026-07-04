@@ -36,6 +36,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+          pip install semgrep
 
       # ---------------------------------------------------------
       # 2. Análisis Estático de Seguridad (SAST)
@@ -61,6 +62,7 @@ jobs:
       
       - name: Generar HTML de Snyk
         run: |
+          sudo chown -R $USER:$USER reports || true
           mkdir -p reports/snyk
           echo "<h1>Reporte Snyk</h1><p>Análisis completado.</p>" > reports/snyk/index.html
 
