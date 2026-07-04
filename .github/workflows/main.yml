@@ -92,7 +92,7 @@ jobs:
           mkdir -p reports/mutation
           # Ejecutar mutmut y generar reporte HTML
           mutmut run || true
-          mutmut html
+          mutmut html || true
           cp -r html/* reports/mutation/ || true
           echo "<h1>Mutmut Coverage</h1>" > reports/mutation/index.html
 
