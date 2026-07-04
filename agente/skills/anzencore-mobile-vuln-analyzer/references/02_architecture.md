@@ -1,34 +1,29 @@
-# AnzenCore Architecture Blueprint
+# Blueprint de Arquitectura (Stateless)
 
-La arquitectura de AnzenCore está dividida en microservicios, pensada para aislar la lógica pesada de análisis del dashboard interactivo y lograr escalabilidad horizontal e integración continua *stateless*.
+Para la herramienta de Ingeniería Inversa y Análisis de Vulnerabilidades, usaremos una arquitectura de microservicios limpia y **100% Stateless** (sin estado). No necesitamos bases de datos complejas ni autenticación. El objetivo es que la herramienta arranque rápido y procese archivos en memoria.
 
 ## Componentes del Stack
 
-1. **Backend / API REST (FastAPI - Python 3.12)**
+1. **Backend / Motor de Ingeniería Inversa (FastAPI - Python 3.12)**
    - Puerto por defecto: 8000
-   - Ejecuta análisis asíncronos y expone endpoints estáticos y proxies para consumidores externos.
-   - Componentes clave: `routes/`, `services/` (donde vive `ApkAnalyzer` y `FolderAnalyzer`), `schemas/`.
-   - Autenticación: Capa stateless o JWT.
+   - Responsabilidad: Recibir el binario (APK) o el ZIP del código, extraerlo en memoria, ejecutar las heurísticas de seguridad y devolver un JSON estructurado.
+   - Componentes clave:
+     - `api/`: Define los endpoints POST.
+     - `services/`: Donde vive la lógica pesada (`ApkAnalyzer`, `FolderAnalyzer`).
 
-2. **Frontend / Dashboard (Streamlit - Python 3.12)**
+2. **Frontend / Interfaz de Auditoría (Streamlit - Python 3.12)**
    - Puerto por defecto: 8501
-   - Actúa como la UI interactiva para los usuarios (desarrolladores/auditores).
-   - Patrón **MVC (Model-View-Controller)** dentro de Streamlit:
-     - `models/`: Interactúa con la base de datos Supabase.
-     - `controllers/`: Reglas de negocio del dashboard, llamadas al Backend API y manejo de sesiones.
-     - `views/`: Dibuja los componentes y widgets en Streamlit.
+   - Responsabilidad: Ser la UI amigable donde el auditor sube el APK. Muestra spinners/barras de carga mientras el backend trabaja, y luego renderiza el reporte de vulnerabilidades de forma visual.
+   - Estructura: Layout directo. Sin pantallas de login. Subir -> Analizar -> Ver Reporte.
 
-3. **Base de Datos (Supabase / PostgreSQL)**
-   - Almacena el registro de usuarios, historial de reportes (JSONs procesados de análisis), escaneos históricos.
-   - Variables de entorno críticas: `SUPABASE_URL`, `SUPABASE_KEY`.
+3. **Despliegue Aislado (Docker)**
+   - Cada servicio tiene su propio `Dockerfile` y corren de forma independiente.
+   - El frontend de Streamlit se comunica con la API de FastAPI a través de peticiones HTTP (mediante la variable de entorno `API_URL`).
 
-4. **Despliegue y Orquestación (Docker + Azure Container Apps)**
-   - Cada servicio (API y Dashboard) tiene su propio `Dockerfile` (`Dockerfile.api`, `Dockerfile.dashboard`).
-   - Escalamiento: El Dashboard y la API escalan automáticamente basados en tráfico HTTP (Custom Scale Rules en Terraform).
-
-## Diagrama de Interacción
-1. Usuario interactúa con Streamlit (`app.py` / `DashboardView`).
-2. Streamlit invoca métodos en `DashboardController`.
-3. El Controller consulta `SupabaseModel` (para reportes históricos) o hace peticiones HTTP REST a `FastAPI` (para procesar nuevos APKs).
-4. `FastAPI` utiliza los analizadores (`ApkAnalyzer`), procesa y retorna el JSON al Dashboard.
-5. El Dashboard almacena el resultado exitoso en Supabase.
+## Diagrama de Flujo
+1. **Auditor** arrastra un archivo `.apk` a la interfaz de Streamlit.
+2. Streamlit toma los bytes del archivo y hace un `POST multipart/form-data` a la API de FastAPI.
+3. FastAPI recibe los bytes, los pasa al `ApkAnalyzer`.
+4. El Analyzer hace **ingeniería inversa** extrayendo el contenido y aplicando reglas de detección.
+5. FastAPI devuelve un JSON con todas las vulnerabilidades encontradas, artefactos extraídos y métricas de complejidad.
+6. Streamlit dibuja métricas visuales, tablas, y bloques de código con las evidencias encontradas.

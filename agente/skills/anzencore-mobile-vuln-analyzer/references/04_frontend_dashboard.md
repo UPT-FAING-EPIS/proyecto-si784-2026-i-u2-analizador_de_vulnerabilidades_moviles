@@ -1,57 +1,44 @@
 # Frontend Dashboard (Streamlit Blueprint)
 
-El frontend de un analizador móvil de AnzenCore no es un script plano de Streamlit. Usa una arquitectura MVC montada en el `session_state`.
+El frontend para la herramienta de Ingeniería Inversa debe ser directo, enfocado en subir archivos y mostrar los reportes de manera profesional. No necesitamos bases de datos ni logins, el estado vivirá únicamente en memoria durante la sesión activa.
 
-## Inicialización (Bootstrap)
-Al arrancar, inyecta las dependencias en la sesión y carga el CSS personalizado:
+## Layout Principal
+La interfaz en Streamlit debe tener un diseño claro:
 
 ```python
 import streamlit as st
+import requests
 
-def bootstrap():
-    if "model" not in st.session_state:
-        st.session_state.model = SupabaseModel()
-        st.session_state.controller = DashboardController(st.session_state.model)
-        st.session_state.view = DashboardView()
-    if "nav_section" not in st.session_state:
-        st.session_state.nav_section = "inicio"
-```
+st.set_page_config(page_title="Analizador Móvil", page_icon="🛡️", layout="wide")
 
-## Pinging y Actualizaciones Parciales (@st.fragment)
-Para evitar que toda la pantalla de Streamlit parpadee cuando necesitas actualizar el estado de los usuarios conectados o barras de progreso en vivo, AnzenCore usa fragmentos.
-
-```python
-@st.fragment(run_every=5)
-def _ping_fragment(controller):
-    if "user" not in st.session_state:
-        return
-    user_id = st.session_state.user["id"]
-    controller.update_user_ping(user_id)
-    st.session_state.online_users = controller.fetch_online_list()
-```
-
-## Control de Vistas y Layout
-La clase `DashboardView` maneja el UI. El renderizado condicional se hace verificando si el usuario existe en sesión:
-
-```python
 def main():
-    bootstrap()
-    # 1. Login if not authenticated
-    if "user" not in st.session_state:
-        view.render_login(controller)
-        return
-        
-    # 2. Render Sidebar
-    view.render_sidebar(st.session_state.user)
+    st.title("🛡️ Ingeniería Inversa y Análisis de APKs")
     
-    # 3. Main Dashboard Rendering
-    view.render_dashboard(...)
+    uploaded_file = st.file_uploader("Sube un archivo .apk para analizar", type=["apk", "zip"])
     
-    # 4. Background tasks
-    _ping_fragment(controller)
+    if uploaded_file is not None:
+        if st.button("Iniciar Análisis y Extracción"):
+            with st.spinner("Descompilando y buscando vulnerabilidades..."):
+                # Hacer POST request a FastAPI
+                files = {"files": (uploaded_file.name, uploaded_file.getvalue())}
+                data = {"project_name": uploaded_file.name}
+                try:
+                    response = requests.post("http://api:8000/api/analysis/external/upload_folder", files=files, data=data)
+                    result = response.json()
+                    render_report(result)
+                except Exception as e:
+                    st.error(f"Error conectando al motor de análisis: {e}")
+
+def render_report(result):
+    # Dibuja los hallazgos agrupados por severidad
+    pass
+
+if __name__ == "__main__":
+    main()
 ```
 
-## Prácticas Recomendadas para Mostrar Vulnerabilidades
-1. Agrupar por Severidad (Crítico en rojo, Alto en naranja, etc.).
-2. Mostrar los bloques de código detectados en bloques markdown (`st.code`).
-3. Proporcionar recomendaciones de OWASP Mobile o CWE.
+## Prácticas Recomendadas para Mostrar Hallazgos de Seguridad
+1. **Métricas Rápidas:** Usa `st.metric` o tarjetas HTML para mostrar el Total de Vulnerabilidades, Severidad Máxima y Archivos Extraídos.
+2. **Agrupación Visual:** Utiliza `st.expander` para agrupar los hallazgos. Un expander por vulnerabilidad o un tab (`st.tabs`) por nivel de severidad (Crítico en rojo, Alto en naranja, etc.).
+3. **Evidencia en Código:** Muestra las porciones de código vulnerables usando `st.code(evidencia, language='java')`.
+4. **Recomendaciones:** Muestra la información de mitigación (CWE o OWASP) en un bloque `st.info` o `st.warning`.

@@ -1,8 +1,11 @@
-# AnzenCore Mobile Vulnerability Analyzer Skill
+# AnzenCore Mobile Reverse Engineering Skill
 
-Este repositorio contiene una **Skill para Agentes de IA** que encapsula toda la arquitectura, lógica de análisis de seguridad, y estructura de DevSecOps del proyecto **AnzenCore**.
+Este repositorio contiene una **Skill para Agentes de IA** que instruye al agente en la construcción de una herramienta avanzada de **Ingeniería Inversa y Análisis de Vulnerabilidades Móviles**, extrayendo las lógicas y heurísticas de seguridad del proyecto AnzenCore.
 
-Con esta skill, cualquier asistente basado en agentes puede construir analizadores de vulnerabilidades móviles complejos usando las mejores prácticas extraídas de AnzenCore (FastAPI, Streamlit, Supabase, Azure, Terraform, SonarQube, etc.).
+## Enfoque
+A diferencia de proyectos full-stack monolíticos, este Blueprint entrena al agente para crear un sistema **100% Stateless** (sin estado, sin bases de datos complejas):
+- Un motor robusto en **FastAPI** encargado de extraer el APK, decompilar en memoria y cazar vulnerabilidades por análisis estático (secrets, criptografía débil, fallos de WebView, IPs hardcodeadas).
+- Un dashboard interactivo en **Streamlit** para que el ingeniero de seguridad suba el binario y visualice el reporte al instante.
 
 ## Instalación
 
@@ -12,10 +15,6 @@ Con esta skill, cualquier asistente basado en agentes puede construir analizador
 ## Uso
 
 Simplemente pídele a tu agente:
-> "Actúa como un ingeniero experto en seguridad y construye un analizador de vulnerabilidades móviles usando el blueprint de AnzenCore."
+> "Construye una herramienta de analizador de vulnerabilidades móviles usando ingeniería inversa y el blueprint de AnzenCore."
 
-El agente invocará esta skill, leerá la carpeta de `references/` e implementará:
-- Backend escalable en FastAPI para procesamiento de APKs.
-- Lógicas de extracción de código, detección de hardcoded secrets, weak crypto, y mal uso de WebViews.
-- Frontend en Streamlit interactivo.
-- Infraestructura como código (IaC) en Terraform para Azure.
+El agente invocará esta skill, procesará los patrones arquitectónicos y la lógica de detección, y comenzará a generar tu herramienta sin pedirte configurar bases de datos ni logins.

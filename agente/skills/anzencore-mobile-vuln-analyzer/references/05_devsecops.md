@@ -1,26 +1,26 @@
-# DevSecOps e Infraestructura (AnzenCore Blueprint)
+# Infraestructura y Despliegue (Blueprint)
 
-La seguridad y confiabilidad del analizador dependen de su infraestructura. AnzenCore utiliza Azure Container Apps mediante Terraform y un pipeline riguroso de CI/CD.
+El despliegue de la herramienta de Ingeniería Inversa y Análisis debe ser ligero, utilizando contenedores e infraestructura como código sin dependencias complejas.
 
 ## 1. Contenedores (Docker)
 Los servicios se empaquetan por separado:
-- **API (`Dockerfile.api`)**: Ejecuta `uvicorn` (FastAPI).
-- **Dashboard (`Dockerfile.dashboard`)**: Ejecuta `streamlit`.
-- **Variables de Entorno Cruciales**: `SUPABASE_URL`, `SUPABASE_KEY` (inyectadas al contenedor en runtime).
+- **API (`Dockerfile.api`)**: Ejecuta `uvicorn` (FastAPI) exponiendo el puerto 8000.
+- **Dashboard (`Dockerfile.dashboard`)**: Ejecuta `streamlit` exponiendo el puerto 8501. Configurado para apuntar a la URL de la API.
+
+Ambos Dockerfiles deben ser optimizados, utilizando imágenes base ligeras de Python 3.12 (por ejemplo, `python:3.12-slim`).
 
 ## 2. Infraestructura como Código (Terraform)
-La infraestructura base, descrita en `infra/main.tf`, despliega en Azure:
+La infraestructura despliega los contenedores en Azure Container Apps o servicios similares serverless (ECS, Cloud Run).
+
 - **Azure Container Registry (ACR)**: Almacena las imágenes Docker de la API y el Dashboard.
-- **Log Analytics Workspace**: Centraliza los logs de los contenedores.
-- **Azure Container Apps Environment**: Orquestador serverless donde viven los contenedores.
+- **Azure Container Apps Environment**: Orquestador donde viven los contenedores.
 - **Container Apps**:
-  - `anzencore-api`: Expone puerto 8000. Escala basado en peticiones HTTP concurrentes.
-  - `anzencore-dashboard`: Expone puerto 8501. Configurado con un tráfico del 100% apuntando a la última revisión. Conoce a la API usando la FQDN interna/externa de la Container App de la API.
+  - `analyzer-api`: Expone puerto 8000. Escala basado en peticiones HTTP concurrentes.
+  - `analyzer-dashboard`: Expone puerto 8501. Configurado con un tráfico del 100% apuntando a la última revisión. Conoce a la API usando la FQDN interna de la Container App de la API (a través de la variable `API_URL`).
 
-### Secreto de Infraestructura
-En Terraform, los secrets de Supabase y Registry se manejan nativamente dentro del bloque `secret {}` del `azurerm_container_app`, evitando exponerlos en texto plano en las variables de entorno de la app directamente.
+*(No es necesario provisionar bases de datos como Postgres o Redis en esta arquitectura).*
 
-## 3. CI/CD & DevSecOps (Conceptos)
-Cualquier clon del analizador debe implementar:
-- **Pytest con Mutmut**: Para asegurar que las reglas del `ApkAnalyzer` realmente atrapan vulnerabilidades y los tests no sean frágiles.
-- **SonarQube / Snyk**: El código de la herramienta de seguridad debe ser seguro en sí mismo (ej. escaneo del código Python por GitHub Actions).
+## 3. CI/CD & Calidad
+El código de la herramienta de análisis debe probarse a sí mismo:
+- **Pytest**: Para asegurar que las expresiones regulares de ingeniería inversa realmente detectan los secretos y fallas en los APKs de prueba.
+- **Mutmut** (Opcional pero recomendado): Pruebas de mutación para asegurar que los tests son robustos contra cambios accidentales en las reglas de detección.
