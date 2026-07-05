@@ -145,6 +145,9 @@ jobs:
           cp -r reports/mutation public/mutation || true
           cp -r reports/bdd public/bdd || true
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
       - name: Subir artefacto de Pages
         uses: actions/upload-pages-artifact@v3
         with:
