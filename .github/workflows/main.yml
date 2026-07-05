@@ -47,8 +47,23 @@ jobs:
         run: |
           mkdir -p reports/semgrep
           semgrep scan --config auto --json > reports/semgrep/report.json || true
-          # Para GH Pages, generamos un índice simple en caso de que Semgrep no reporte HTML directo
-          echo "<h1>Reporte Semgrep</h1><p>Revisar JSON para más detalles.</p>" > reports/semgrep/index.html
+          # Para GH Pages, generamos un reporte HTML básico con Python a partir del JSON
+          python -c "
+          import json
+          try:
+              with open('reports/semgrep/report.json', 'r') as f:
+                  data = json.load(f)
+              html = '<html><head><title>Reporte Semgrep</title><style>body{font-family:sans-serif;} table{border-collapse: collapse; width: 100%;} th, td{border: 1px solid #ddd; padding: 8px;} th{background-color: #f2f2f2;}</style></head><body>'
+              html += '<h1>Reporte Semgrep (SAST)</h1><table><tr><th>Regla</th><th>Severidad</th><th>Mensaje</th><th>Archivo</th><th>Línea</th></tr>'
+              for r in data.get('results', []):
+                  html += f'<tr><td>{r.get(\"check_id\", \"\")}</td><td>{r.get(\"extra\",{}).get(\"severity\",\"\")}</td><td>{r.get(\"extra\",{}).get(\"message\",\"\")}</td><td>{r.get(\"path\", \"\")}</td><td>{r.get(\"start\",{}).get(\"line\",\"\")}</td></tr>'
+              html += '</table></body></html>'
+              with open('reports/semgrep/index.html', 'w', encoding='utf-8') as f:
+                  f.write(html)
+          except Exception as e:
+              with open('reports/semgrep/index.html', 'w', encoding='utf-8') as f:
+                  f.write(f'<h1>Reporte Semgrep</h1><p>Error generando el HTML: {e}. Revisa el JSON.</p>')
+          "
         continue-on-error: true
 
       # Snyk
@@ -64,7 +79,8 @@ jobs:
         run: |
           sudo chown -R $USER:$USER reports || true
           mkdir -p reports/snyk
-          echo "<h1>Reporte Snyk</h1><p>Análisis completado.</p>" > reports/snyk/index.html
+          npm install -g snyk-to-html
+          snyk-to-html -i reports/snyk/report.json -o reports/snyk/index.html || true
 
       # ---------------------------------------------------------
       # 3. Cobertura de Pruebas Unitarias
@@ -91,10 +107,9 @@ jobs:
         run: |
           mkdir -p reports/mutation
           # Ejecutar mutmut y generar reporte HTML
-          mutmut run || true
+          mutmut run --paths-to-mutate=app/ || true
           mutmut html || true
           cp -r html/* reports/mutation/ || true
-          echo "<h1>Mutmut Coverage</h1>" > reports/mutation/index.html
 
       # ---------------------------------------------------------
       # 5. Pruebas BDD (Behaviour Driven Development)
@@ -102,9 +117,9 @@ jobs:
       - name: Ejecutar Pruebas BDD (Behave)
         run: |
           mkdir -p reports/bdd
-          # Ejecuta behave exportando en formato JUnit
-          python -m behave tests/bdd --junit --junit-directory reports/bdd || true
-          echo "<h1>Reporte BDD (Behave)</h1><p>Todos los escenarios ejecutados.</p>" > reports/bdd/index.html
+          pip install behave-html-formatter
+          # Ejecuta behave exportando en formato JUnit y en HTML
+          python -m behave tests/bdd --junit --junit-directory reports/bdd -f html -o reports/bdd/index.html || true
 
       - name: Anotación BDD en GitHub Actions
         uses: dorny/test-reporter@v1
