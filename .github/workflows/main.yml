@@ -106,17 +106,13 @@ jobs:
       - name: Ejecutar Pruebas de Mutación
         run: |
           mkdir -p reports/mutation
-          # Ejecutar mutmut y generar reporte HTML capturando el log
-          mutmut run --paths-to-mutate=app/ > mutmut_run.log 2>&1 || true
-          mutmut html > mutmut_html.log 2>&1 || true
+          # Ejecutar mutmut y generar reporte HTML
+          mutmut run --paths-to-mutate=app/ || true
+          mutmut html || true
           if [ -d "html" ] && [ "$(ls -A html)" ]; then
             cp -r html/* reports/mutation/
           else
-            echo "<h1>Reporte de Mutaciones (Ocurrió un error)</h1><pre>" > reports/mutation/index.html
-            cat mutmut_run.log >> reports/mutation/index.html
-            echo "</pre><pre>" >> reports/mutation/index.html
-            cat mutmut_html.log >> reports/mutation/index.html
-            echo "</pre><p>No se pudo generar el reporte de Mutmut automáticamente.</p>" >> reports/mutation/index.html
+            echo "<h1>Reporte de Mutaciones</h1><p>No se pudo generar el reporte de Mutmut automáticamente. Es posible que no se hayan encontrado mutaciones o haya ocurrido un error durante la ejecución.</p>" > reports/mutation/index.html
           fi
 
       # ---------------------------------------------------------
