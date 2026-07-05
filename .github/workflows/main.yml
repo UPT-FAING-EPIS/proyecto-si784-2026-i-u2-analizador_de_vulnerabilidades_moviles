@@ -109,7 +109,11 @@ jobs:
           # Ejecutar mutmut y generar reporte HTML
           mutmut run --paths-to-mutate=app/ || true
           mutmut html || true
-          cp -r html/* reports/mutation/ || true
+          if [ -d "html" ] && [ "$(ls -A html)" ]; then
+            cp -r html/* reports/mutation/
+          else
+            echo "<h1>Reporte de Mutaciones</h1><p>No se pudo generar el reporte de Mutmut automáticamente. Es posible que no se hayan encontrado mutaciones o haya ocurrido un error durante la ejecución.</p>" > reports/mutation/index.html
+          fi
 
       # ---------------------------------------------------------
       # 5. Pruebas BDD (Behaviour Driven Development)
