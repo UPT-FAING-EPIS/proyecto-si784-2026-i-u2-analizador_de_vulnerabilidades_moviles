@@ -140,20 +140,71 @@ jobs:
       - name: Consolidar Reportes para GH Pages
         run: |
           mkdir -p public
-          # Crear índice principal
+          # Crear índice principal con TailwindCSS y diseño moderno
           cat << 'EOF' > public/index.html
           <!DOCTYPE html>
-          <html>
-          <head><title>Reportes AnzenCore</title></head>
-          <body style="font-family: sans-serif; padding: 2rem;">
-            <h1>Dashboard de Reportes - AnzenCore</h1>
-            <ul>
-              <li><a href="semgrep/">Reporte Semgrep (SAST)</a></li>
-              <li><a href="snyk/">Reporte Snyk (SCA)</a></li>
-              <li><a href="coverage/htmlcov/">Reporte de Cobertura (Pytest)</a></li>
-              <li><a href="mutation/">Reporte de Mutaciones (Mutmut)</a></li>
-              <li><a href="bdd/">Reporte BDD (Behave)</a></li>
-            </ul>
+          <html lang="es">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Dashboard DevSecOps AnzenCore</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+            <style>
+              body { font-family: 'Inter', sans-serif; background: #0f172a; color: #f1f5f9; }
+              .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+              .card:hover { transform: translateY(-5px); transition: all 0.3s ease; border-color: #38bdf8; box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.3); }
+            </style>
+          </head>
+          <body class="min-h-screen p-8">
+            <div class="max-w-6xl mx-auto">
+              <header class="mb-12 text-center mt-10">
+                <h1 class="text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-indigo-500 mb-4 drop-shadow-lg">AnzenCore DevSecOps</h1>
+                <p class="text-slate-400 text-lg">Panel Central de Reportes de Seguridad, Calidad y Pruebas</p>
+              </header>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Semgrep -->
+                <a href="semgrep/" class="glass card p-8 rounded-3xl block">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-cyan-400">SAST</h2>
+                    <span class="bg-cyan-900/50 text-cyan-300 text-xs px-2 py-1 rounded-full border border-cyan-800">Semgrep</span>
+                  </div>
+                  <p class="text-slate-400 text-sm">Análisis Estático de Seguridad. Explora vulnerabilidades directamente en el código fuente.</p>
+                </a>
+                <!-- Snyk -->
+                <a href="snyk/" class="glass card p-8 rounded-3xl block">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-indigo-400">SCA</h2>
+                    <span class="bg-indigo-900/50 text-indigo-300 text-xs px-2 py-1 rounded-full border border-indigo-800">Snyk</span>
+                  </div>
+                  <p class="text-slate-400 text-sm">Análisis de Composición. Revisa las dependencias y paquetes de terceros vulnerables.</p>
+                </a>
+                <!-- Pytest -->
+                <a href="coverage/htmlcov/" class="glass card p-8 rounded-3xl block">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-emerald-400">Cobertura</h2>
+                    <span class="bg-emerald-900/50 text-emerald-300 text-xs px-2 py-1 rounded-full border border-emerald-800">Pytest</span>
+                  </div>
+                  <p class="text-slate-400 text-sm">Reporte detallado de cobertura de las pruebas unitarias y funcionales (HTML).</p>
+                </a>
+                <!-- Mutmut -->
+                <a href="mutation/" class="glass card p-8 rounded-3xl block">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-rose-400">Mutaciones</h2>
+                    <span class="bg-rose-900/50 text-rose-300 text-xs px-2 py-1 rounded-full border border-rose-800">Mutmut</span>
+                  </div>
+                  <p class="text-slate-400 text-sm">Evaluación de la calidad real de tus pruebas mediante la inserción de mutantes en el código.</p>
+                </a>
+                <!-- Behave -->
+                <a href="bdd/" class="glass card p-8 rounded-3xl block">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-amber-400">Comportamiento</h2>
+                    <span class="bg-amber-900/50 text-amber-300 text-xs px-2 py-1 rounded-full border border-amber-800">Behave (BDD)</span>
+                  </div>
+                  <p class="text-slate-400 text-sm">Pruebas basadas en comportamiento. Documentación viva de los requerimientos funcionales.</p>
+                </a>
+              </div>
+            </div>
           </body>
           </html>
           EOF
