@@ -15,6 +15,10 @@
 
 > **AnzenCore** es un analizador de vulnerabilidades móviles y de calidad de código. Permite analizar proyectos, realizar validaciones estáticas, registrar los hallazgos en bases de datos gestionadas de alta concurrencia y exportar reportes detallados.
 
+**VIDEO DEMO:** https://drive.google.com/drive/folders/1yMdev7kdS-gvyCPDbb_FISKsSxXu5EmZ?usp=drive_link  
+**Repositorio de la SKILL:** https://github.com/FabrizioPerezPeralta/Skill_AnzenCore.git  
+**Extensión Visual Studio Code:** AnzenCore
+
 ---
 
 ## 🎯 Objetivos del Proyecto
