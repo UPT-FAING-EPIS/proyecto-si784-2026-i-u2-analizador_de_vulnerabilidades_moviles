@@ -226,18 +226,28 @@ python -m mutmut run --paths-to-mutate app/dashboard/services/report_export_serv
 <summary><b>1. Diagrama de Casos de Uso</b></summary>
 
 ```mermaid
-usecaseDiagram
-    actor Usuario
-    actor Administrador
+flowchart LR
+    %% Actores
+    Usuario([Usuario])
+    Administrador([Administrador])
     
-    Usuario --> (Subir aplicación APK)
-    Usuario --> (Visualizar Reporte de Vulnerabilidades)
-    Usuario --> (Exportar Resultados)
+    %% Casos de Uso
+    SubirAPK(Subir aplicación APK)
+    VerReporte(Visualizar Reporte de Vulnerabilidades)
+    Exportar(Exportar Resultados)
+    GestReglas(Gestionar Reglas de Escaneo)
+    VerEst(Ver Estadísticas Generales)
+    IniciarEscaneo(Iniciar Escaneo Estático)
     
-    Administrador --> (Gestionar Reglas de Escaneo)
-    Administrador --> (Ver Estadísticas Generales)
+    %% Relaciones
+    Usuario --> SubirAPK
+    Usuario --> VerReporte
+    Usuario --> Exportar
     
-    (Subir aplicación APK) ..> (Iniciar Escaneo Estático) : <<include>>
+    Administrador --> GestReglas
+    Administrador --> VerEst
+    
+    SubirAPK -. "<<include>>" .-> IniciarEscaneo
 ```
 </details>
 
@@ -309,35 +319,35 @@ classDiagram
 <summary><b>4. Diagrama de Componentes</b></summary>
 
 ```mermaid
-componentDiagram
-    package "Frontend" {
-        [Streamlit Dashboard]
-    }
+flowchart TD
+    subgraph Frontend ["Frontend"]
+        Dashboard["Streamlit Dashboard"]
+    end
     
-    package "Backend API" {
-        [FastAPI Gateway]
-        [Servicio de Autenticación]
-        [Orquestador de Tareas]
-    }
+    subgraph BackendAPI ["Backend API"]
+        Gateway["FastAPI Gateway"]
+        Auth["Servicio de Autenticación"]
+        Orquestador["Orquestador de Tareas"]
+    end
     
-    package "Core Analizador" {
-        [Motor Semgrep SAST]
-        [Motor Snyk DAST]
-        [Decompilador APK]
-    }
+    subgraph CoreAnalizador ["Core Analizador"]
+        Semgrep["Motor Semgrep SAST"]
+        Snyk["Motor Snyk DAST"]
+        Decompilador["Decompilador APK"]
+    end
     
-    database "Almacenamiento" {
-        [Supabase / PostgreSQL]
-        [Almacenamiento de Archivos]
-    }
+    subgraph Almacenamiento ["Almacenamiento"]
+        Postgres[("Supabase / PostgreSQL")]
+        Archivos[("Almacenamiento de Archivos")]
+    end
 
-    [Streamlit Dashboard] --> [FastAPI Gateway]
-    [FastAPI Gateway] --> [Servicio de Autenticación]
-    [FastAPI Gateway] --> [Orquestador de Tareas]
-    [Orquestador de Tareas] --> [Motor Semgrep SAST]
-    [Orquestador de Tareas] --> [Motor Snyk DAST]
-    [Orquestador de Tareas] --> [Almacenamiento de Archivos]
-    [Motor Semgrep SAST] --> [Supabase / PostgreSQL]
+    Dashboard --> Gateway
+    Gateway --> Auth
+    Gateway --> Orquestador
+    Orquestador --> Semgrep
+    Orquestador --> Snyk
+    Orquestador --> Archivos
+    Semgrep --> Postgres
 ```
 </details>
 
