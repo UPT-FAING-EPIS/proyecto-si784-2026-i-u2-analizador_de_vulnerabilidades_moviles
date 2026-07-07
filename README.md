@@ -19,6 +19,7 @@
 **Repositorio de la SKILL:** https://github.com/FabrizioPerezPeralta/Skill_AnzenCore.git  
 **Extensión Visual Studio Code:** AnzenCore
 **Aplicación desplegada:** https://anzencore-dashboard.yellowsand-01bb3852.eastus2.azurecontainerapps.io/
+
 **API:** https://anzencore-api.yellowsand-01bb3852.eastus2.azurecontainerapps.io
 
 ---
